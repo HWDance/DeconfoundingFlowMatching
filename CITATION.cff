@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use DeconfoundingFM in your research, please cite the accompanying paper."
+title: "DeconfoundingFM"
+type: software
+version: 0.2.0
+authors:
+  - family-names: Dance
+    given-names: Hugh
+  - family-names: Xi
+    given-names: Johnny
+  - family-names: Orbanz
+    given-names: Peter
+  - family-names: Bloem-Reddy
+    given-names: Benjamin
+license: Apache-2.0
+preferred-citation:
+  type: article
+  title: "Debiased Counterfactual Generation via Flow Matching from Observations"
+  authors:
+    - family-names: Dance
+      given-names: Hugh
+    - family-names: Xi
+      given-names: Johnny
+    - family-names: Orbanz
+      given-names: Peter
+    - family-names: Bloem-Reddy
+      given-names: Benjamin
+  year: 2026
+  notes: "arXiv:2605.07665"

@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deconfoundingfm"
+version = "0.2.0"
+description = "Deconfounding observational to counterfactual distributions with flow matching"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [
+  {name = "Hugh Dance"},
+  {name = "Johnny Xi"},
+  {name = "Peter Orbanz"},
+  {name = "Benjamin Bloem-Reddy"},
+]
+keywords = ["causal inference", "flow matching", "counterfactuals", "generative modeling"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+  "numpy>=1.26",
+  "scikit-learn>=1.4",
+  "torch>=2.3",
+]
+
+[project.optional-dependencies]
+plots = ["matplotlib>=3.8"]
+dev = ["pytest>=8", "ruff>=0.6", "build>=1.2"]
+
+[project.urls]
+Paper = "https://arxiv.org/abs/2605.07665"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["deconfoundingfm*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
