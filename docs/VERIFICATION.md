@@ -1,105 +1,76 @@
-# Refactor verification
+# Refactor and demo verification
 
-The refactor was checked at three levels: equivalence against the research source, package-level tests,
-and built-wheel installation.
+The applied repository was checked at four levels: equivalence against the research source, automated tests, exact optimizer-step runs, and notebook execution.
 
 ## 1. Research-source equivalence
 
-Before deleting the parallel target implementations, the generalized OT-capable target was compared to
-the separate independent target in the original repository. With identical model weights, empirical
-bases, cached nuisance samples, cached propensities, minibatches, and RNG seeds:
+Before deleting the parallel target implementations, the generalized OT-capable target was compared to the separate independent target in the original repository. With identical model weights, empirical bases, cached nuisance samples, cached propensities, minibatches, and RNG seeds:
 
-- vector target, arm 0: exact equality;
-- vector target, arm 1: exact equality;
-- image/U-Net target, arm 0: exact equality;
-- image/U-Net target, arm 1: exact equality.
+- vector target, arm 0/1: exact equality;
+- image/U-Net target, arm 0/1: exact equality.
 
-The same comparison was then run between the **new canonical target** and the original generalized
-research target for the full configuration matrix:
-
-- vector + independent: exact equality in both arms;
-- vector + EOT: exact equality in both arms;
-- image/U-Net + independent: exact equality in both arms;
-- image/U-Net + EOT: exact equality in both arms.
-
-The generalized conditional outcome nuisance was also checked against both its older MLP-only source
-and the new canonical nuisance:
-
-- vector/MLP flow-matching loss: exact equality;
-- vector/MLP conditional samples: exact equality;
-- image/UNetX flow-matching loss: exact equality against the generalized research source;
-- image/UNetX conditional samples: exact equality against the generalized research source.
-
-These checks used settings away from the explicitly fixed edge cases (e.g. propensity clipping and the
-single-draw reservoir axis), so they test that the refactor itself did not alter the existing algorithms.
+The new canonical target was then compared with the original generalized target for vector/image outcomes with independent/EOT coupling, again obtaining exact equality away from the explicitly documented robustness fixes. The generalized conditional-outcome nuisance was likewise checked against the older MLP-only implementation and the refactored MLP/UNetX implementation.
 
 ## 2. Automated tests
 
-The repository test suite currently contains 17 tests and covers:
+The current suite contains **18 tests**. In addition to the original vector/image, nuisance, propensity, coupling, integration, and public-API tests, it now checks that:
 
-- imports/version;
-- no legacy `doflow` or `backends` import paths in installed source;
-- Euler and midpoint integration;
-- vector and image path energy;
-- flow-matching loss sanity;
-- Sinkhorn uniform marginals;
-- EOT conditional normalization/sampling;
-- vector target with independent coupling;
-- vector target with EOT;
-- image/U-Net target with independent coupling;
-- image/U-Net target with EOT;
-- the `plugin_reservoir=1` regression for vectors and images;
-- vector/MLP conditional nuisance;
-- image/UNetX conditional nuisance;
-- random-forest propensity input/output contracts;
-- high-level built-in vector fit → sample → transform → diagnostics;
-- high-level image + EOT fit → sample → transform using custom nuisances.
+- `iterations=k` produces exactly `k` optimizer updates regardless of the epoch setting;
+- `coupling="ot"` activates the entropic-OT target path;
+- the exact iteration count is surfaced in diagnostics.
 
-Result in the build environment:
+Build-environment result:
 
 ```text
-17 passed
+18 passed
 ```
 
-## 3. Packaging checks
+## 3. Exact 10,000-iteration demo runs
 
-The package was built into a wheel using the local build toolchain with build isolation disabled (the
-verification environment has no network access):
+The committed demo outputs were generated from the same deterministic observational dataset and the same fitted nuisance estimators. Each target was run separately for **exactly 10,000 optimizer updates**:
 
 ```text
-deconfoundingfm-0.2.1-py3-none-any.whl
+DeconfoundingFM       10,000 updates
+OT-DeconfoundingFM    10,000 updates
+Gaussian-base FM      10,000 updates
 ```
 
-That wheel was then installed into a clean target directory, imported from the installed wheel rather
-than the source tree, and the full 17-test suite was run against the installed package:
+The demo uses a three-component Gaussian-mixture outcome structure, moderate covariate effects, and treatment selection through `sigmoid(3.2 X)`. With target learning rate `1e-4`, the committed arm-1 evaluation gives:
 
 ```text
-17 passed
+SW2 observed source       -> target: 0.432
+SW2 DeconfoundingFM       -> target: 0.393
+SW2 OT-DeconfoundingFM    -> target: 0.262
+SW2 Gaussian-base FM      -> target: 0.588
+
+Mean path energy, DeconfoundingFM:    6.623
+Mean path energy, OT-DeconfoundingFM: 0.189
 ```
 
-All 14 installable submodules were also enumerated with `pkgutil` and imported successfully.
+Thus the demo exhibits both intended effects: the observational base avoids reconstructing the multimodal outcome geometry from Gaussian noise, while the OT coupling yields a much lower-energy deconfounding transport.
 
-## 4. Runnable demo
+## 4. Notebook validation
 
-`examples/demo.ipynb` was executed end-to-end on CPU and is committed with all cell outputs and figures embedded. The demo fits the default nuisance estimators, then fits both the empirical-base DeconfoundingFM target and an otherwise matched Gaussian-base target sharing those nuisance fits. In the committed run for treatment arm 1:
+`examples/demo.ipynb` is the only example and is committed with the three figures and numerical outputs embedded for direct viewing on GitHub.
+
+To validate the executable code path without conflating correctness with a long benchmark runtime, a temporary copy of the notebook was run end-to-end with the target and nuisance iteration budgets reduced; every cell, including the independent, OT, Gaussian, metrics, energy, and trajectory cells, executed successfully. Separately, the three target configurations used in the committed outputs were each run for the full 10,000 updates as documented above.
+
+The notebook automatically uses CUDA when available and otherwise uses CPU. For this small CPU example it sets PyTorch to one CPU thread, which avoids excessive thread-pool overhead for the many small operations in minibatch OT.
+
+## 5. Wheel installation
+
+A `deconfoundingfm-0.2.2-py3-none-any.whl` wheel was built locally with build isolation disabled, installed into a clean target directory with no dependency installation, and the full 18-test suite was rerun against the installed wheel:
 
 ```text
-SW2 observed source  -> target: 0.388
-SW2 DeconfoundingFM  -> target: 0.244
-SW2 Gaussian-base FM -> target: 0.477
+18 passed
 ```
 
-The notebook also renders the source/target geometry, fitted counterfactual samples, and flow trajectories. A full `nbconvert --execute` rerun completed in approximately 34 seconds in the CPU-only verification environment.
+## 6. Static/package checks
 
-## 5. Static checks
-
-- `python -Werror -m compileall` succeeds on package source;
+- package source compiles successfully;
 - package source contains no imports from the old `doflow` namespace;
-- the public package has a single implementation tree rather than a mirrored backend package.
+- the public package has one target implementation and one conditional-outcome implementation;
+- `examples/` contains only `demo.ipynb`;
+- the notebook contains no error outputs.
 
-## Environment limitation
-
-The verification container exposes CPU-only PyTorch (`torch.cuda.is_available() == False`), so the
-CUDA runtime path could not be executed here. The code uses standard PyTorch device placement and the
-same U-Net/MLP kernels as the research implementation, but a GPU smoke test should still be run on the
-cluster before declaring a release candidate.
+The verification environment exposes CPU-only PyTorch, so a CUDA runtime smoke test remains appropriate before declaring a release candidate.

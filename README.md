@@ -20,7 +20,7 @@ vector outcomes, and image outcomes. The applied package now uses **one canonica
 implementation**:
 
 - `coupling="independent"` gives the standard doubly robust flow-matching estimator;
-- `coupling="eot"` activates the minibatch entropic-OT conditional;
+- `coupling="ot"` (or the legacy alias `"eot"`) activates the minibatch entropic-OT conditional;
 - vector outcomes use an MLP velocity;
 - image outcomes use a U-Net velocity.
 
@@ -95,7 +95,18 @@ print(model.diagnostics())
 
 With `architecture="auto"` (the default), `(N,d_y)` outcomes select an MLP automatically.
 
-A fully executed walkthrough is in [`examples/demo.ipynb`](examples/demo.ipynb). The notebook is committed with its outputs, so the geometry and learned transports are visible directly on GitHub; it can also be re-run end-to-end on CPU.
+A runnable walkthrough with committed outputs is in [`examples/demo.ipynb`](examples/demo.ipynb). The notebook is committed with its outputs, so the geometry and learned transports are visible directly on GitHub; it can also be re-run end-to-end on CPU.
+
+
+### Exact optimizer-step budgets
+
+For comparisons where the number of gradient updates should be controlled directly, set `iterations`:
+
+```python
+DeconfoundingFMConfig(iterations=10_000)
+```
+
+This runs exactly 10,000 target-flow optimizer updates regardless of dataset or minibatch size. If `iterations=None`, training falls back to the epoch budget in `epochs`. The demo uses 10,000 target iterations for DeconfoundingFM, OT-DeconfoundingFM, and the Gaussian-base comparison.
 
 ## Image outcomes
 
@@ -106,7 +117,7 @@ implementation:
 model = DeconfoundingFM(
     DeconfoundingFMConfig(
         architecture="auto",
-        coupling="eot",
+        coupling="ot",
         unet_channels=32,
         nuisance_unet_channels=32,
         device="cuda",
@@ -131,7 +142,7 @@ uses the estimator for which the paper develops the clean doubly robust/efficien
 For higher-dimensional outcomes, one can use
 
 ```python
-DeconfoundingFMConfig(coupling="eot")
+DeconfoundingFMConfig(coupling="ot")
 ```
 
 to construct minibatch entropic-OT conditionals between plug-in counterfactual draws and the

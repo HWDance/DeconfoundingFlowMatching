@@ -31,6 +31,7 @@ class DeconfoundingFlowConfig:
     batch_size: int = 1024
     lr: float = 1e-3
     epochs: int = 1000
+    iterations: Optional[int] = None
     ode_steps: int = 100
     min_propensity: float = 1e-2
     plugin_reservoir: int = 1000
@@ -516,32 +517,83 @@ class DeconfoundingFlow(nn.Module):
         self.train()
 
         history = []
-        for ep in range(int(self.cfg.epochs)):
-            total = 0.0
-            n_batches = 0
-            for batch in loader:
+
+        # ``iterations`` gives an exact optimizer-step budget, independent of
+        # dataset size and batch size.  ``epochs`` is retained as the backward-
+        # compatible fallback when no iteration budget is supplied.
+        if self.cfg.iterations is not None:
+            n_steps = int(self.cfg.iterations)
+            if n_steps < 1:
+                raise ValueError("iterations must be >= 1 when provided.")
+            iterator = iter(loader)
+            for step in range(n_steps):
+                try:
+                    batch = next(iterator)
+                except StopIteration:
+                    iterator = iter(loader)
+                    batch = next(iterator)
+
                 opt.zero_grad(set_to_none=True)
                 loss = self.fm_step(batch)
                 if not torch.isfinite(loss):
                     raise FloatingPointError(
-                        f"Non-finite DeconfoundingFM loss at epoch {ep + 1}."
+                        f"Non-finite DeconfoundingFM loss at iteration {step + 1}."
                     )
                 loss.backward()
                 opt.step()
-                total += float(loss.detach())
-                n_batches += 1
+                loss_value = float(loss.detach())
+                history.append(loss_value)
 
-            mean_loss = total / max(n_batches, 1)
-            history.append(mean_loss)
-            if verbose and (ep == 0 or (ep + 1) % 100 == 0 or ep + 1 == self.cfg.epochs):
-                print(f"DeconfoundingFM epoch {ep + 1}/{self.cfg.epochs} | loss={mean_loss:.6f}")
+                if verbose and (
+                    step == 0 or (step + 1) % 1000 == 0 or step + 1 == n_steps
+                ):
+                    print(
+                        f"DeconfoundingFM iteration {step + 1}/{n_steps} | "
+                        f"loss={loss_value:.6f}"
+                    )
 
-            if (
-                self.cfg.update_plugin_reservoir
-                and ep > 0
-                and ep % self.cfg.plugin_reservoir_update_frequency == 0
-            ):
-                self.set_plugin_samples(X, A)
+                if (
+                    self.cfg.update_plugin_reservoir
+                    and step > 0
+                    and step % int(self.cfg.plugin_reservoir_update_frequency) == 0
+                ):
+                    self.set_plugin_samples(X, A)
+            self.training_steps_ = n_steps
+        else:
+            total_steps = 0
+            for ep in range(int(self.cfg.epochs)):
+                total = 0.0
+                n_batches = 0
+                for batch in loader:
+                    opt.zero_grad(set_to_none=True)
+                    loss = self.fm_step(batch)
+                    if not torch.isfinite(loss):
+                        raise FloatingPointError(
+                            f"Non-finite DeconfoundingFM loss at epoch {ep + 1}."
+                        )
+                    loss.backward()
+                    opt.step()
+                    total += float(loss.detach())
+                    n_batches += 1
+                    total_steps += 1
+
+                mean_loss = total / max(n_batches, 1)
+                history.append(mean_loss)
+                if verbose and (
+                    ep == 0 or (ep + 1) % 100 == 0 or ep + 1 == self.cfg.epochs
+                ):
+                    print(
+                        f"DeconfoundingFM epoch {ep + 1}/{self.cfg.epochs} | "
+                        f"loss={mean_loss:.6f}"
+                    )
+
+                if (
+                    self.cfg.update_plugin_reservoir
+                    and ep > 0
+                    and ep % self.cfg.plugin_reservoir_update_frequency == 0
+                ):
+                    self.set_plugin_samples(X, A)
+            self.training_steps_ = total_steps
 
         self.training_loss_ = history
         return self

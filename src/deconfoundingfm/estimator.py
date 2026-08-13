@@ -13,7 +13,7 @@ from .nn.velocity import UNet
 from .nuisance.outcome import ConditionalFlowFM, ConditionalFlowFMConfig
 from .nuisance.propensity import RandomForestConfig, RandomForestPropensityEstimator
 
-Coupling = Literal["independent", "eot"]
+Coupling = Literal["independent", "ot", "eot"]
 Architecture = Literal["auto", "mlp", "unet"]
 
 
@@ -38,6 +38,7 @@ class DeconfoundingFMConfig:
     batch_size: Optional[int] = None
     lr: Optional[float] = None
     epochs: int = 1000
+    iterations: Optional[int] = None
     ode_steps: int = 100
     min_propensity: float = 0.01
     base_kind: Literal["empirical", "gaussian"] = "empirical"
@@ -100,8 +101,8 @@ class DeconfoundingFM:
         propensity_model: Optional[Any] = None,
     ):
         self.config = config or DeconfoundingFMConfig()
-        if self.config.coupling not in {"independent", "eot"}:
-            raise ValueError("coupling must be 'independent' or 'eot'.")
+        if self.config.coupling not in {"independent", "ot", "eot"}:
+            raise ValueError("coupling must be 'independent', 'ot', or 'eot'.")
         if self.config.architecture not in {"auto", "mlp", "unet"}:
             raise ValueError("architecture must be 'auto', 'mlp', or 'unet'.")
         if self.config.base_kind not in {"empirical", "gaussian"}:
@@ -259,6 +260,7 @@ class DeconfoundingFM:
             batch_size=opts["batch_size"],
             lr=opts["lr"],
             epochs=self.config.epochs,
+            iterations=self.config.iterations,
             ode_steps=self.config.ode_steps,
             min_propensity=self.config.min_propensity,
             plugin_reservoir=opts["plugin_reservoir"],
@@ -266,7 +268,7 @@ class DeconfoundingFM:
             update_plugin_reservoir=opts["update_plugin_reservoir"],
             plugin_reservoir_update_frequency=self.config.plugin_reservoir_update_frequency,
             base_noise_std=self.config.base_noise_std,
-            use_ot=self.config.coupling == "eot",
+            use_ot=self.config.coupling in {"ot", "eot"},
             ot_eps=self.config.eot_epsilon,
             ot_eps_scale=self.config.eot_epsilon_scale,
             ot_iters=self.config.eot_iterations,
@@ -318,6 +320,8 @@ class DeconfoundingFM:
             result["effective_sample_size"][arm] = float(
                 (w.sum().square() / w.square().sum()).item()
             )
+        if self.model_ is not None and hasattr(self.model_, "training_steps_"):
+            result["training_iterations"] = int(self.model_.training_steps_)
         if self.model_ is not None and hasattr(self.model_, "_ot_eps"):
             result["eot_epsilon_last"] = float(self.model_._ot_eps)
         return result

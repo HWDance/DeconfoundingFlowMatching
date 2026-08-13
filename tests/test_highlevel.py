@@ -55,3 +55,29 @@ def test_highlevel_image_eot_with_custom_nuisances():
     assert model.sample(1, 1).shape == (1, 1, 8, 8)
     assert model.transform(Y[0], 1).shape == (1, 1, 8, 8)
     assert "eot_epsilon_last" in model.diagnostics()
+
+
+def test_highlevel_exact_iteration_budget_and_ot_alias():
+    X, A, Y = vector_data(n=32, dim_y=1)
+    cfg = DeconfoundingFMConfig(
+        coupling="ot",
+        device="cpu",
+        iterations=3,
+        epochs=99,  # ignored when iterations is supplied
+        ode_steps=1,
+        batch_size=16,
+        plugin_reservoir=1,
+        plugin_batch=1,
+        eot_iterations=2,
+        eot_source_batch=8,
+    )
+    model = DeconfoundingFM(
+        cfg,
+        outcome_model=DummyOutcome((1,)),
+        propensity_model=DummyPropensity(),
+    ).fit(X, A, Y, verbose=False)
+    assert model.model_.training_steps_ == 3
+    assert len(model.model_.training_loss_) == 3
+    assert model.diagnostics()["training_iterations"] == 3
+    assert model.diagnostics()["coupling"] == "ot"
+    assert "eot_epsilon_last" in model.diagnostics()
