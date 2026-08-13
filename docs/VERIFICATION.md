@@ -67,7 +67,7 @@ The package was built into a wheel using the local build toolchain with build is
 verification environment has no network access):
 
 ```text
-deconfoundingfm-0.2.0-py3-none-any.whl
+deconfoundingfm-0.2.1-py3-none-any.whl
 ```
 
 That wheel was then installed into a clean target directory, imported from the installed wheel rather
@@ -79,17 +79,21 @@ than the source tree, and the full 17-test suite was run against the installed p
 
 All 14 installable submodules were also enumerated with `pkgutil` and imported successfully.
 
-## 4. Runnable examples
+## 4. Runnable demo
 
-The following examples were executed successfully from the source checkout:
+`examples/demo.ipynb` was executed end-to-end on CPU and is committed with all cell outputs and figures embedded. The demo fits the default nuisance estimators, then fits both the empirical-base DeconfoundingFM target and an otherwise matched Gaussian-base target sharing those nuisance fits. In the committed run for treatment arm 1:
 
-- `examples/quickstart.py`;
-- `examples/custom_nuisances.py`;
-- `examples/image_api.py`.
+```text
+SW2 observed source  -> target: 0.388
+SW2 DeconfoundingFM  -> target: 0.244
+SW2 Gaussian-base FM -> target: 0.477
+```
+
+The notebook also renders the source/target geometry, fitted counterfactual samples, and flow trajectories. A full `nbconvert --execute` rerun completed in approximately 34 seconds in the CPU-only verification environment.
 
 ## 5. Static checks
 
-- `python -Werror -m compileall` succeeds on package source and examples;
+- `python -Werror -m compileall` succeeds on package source;
 - package source contains no imports from the old `doflow` namespace;
 - the public package has a single implementation tree rather than a mirrored backend package.
 

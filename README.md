@@ -11,7 +11,7 @@ This repository is the **applied implementation** of:
 > arXiv:2605.07665, 2026.
 
 The paper-reproduction repository can remain broad and experiment-heavy. This repository deliberately
-contains only the reusable method, small examples, tests, and packaging needed to apply it to new data.
+contains only the reusable method, one executable demo notebook, tests, and packaging needed to apply it to new data.
 
 ## What is consolidated here?
 
@@ -54,6 +54,13 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e .
 ```
 
+For the executable demo notebook:
+
+```bash
+pip install -e ".[demo]"
+jupyter notebook examples/demo.ipynb
+```
+
 For development:
 
 ```bash
@@ -61,7 +68,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-The core package depends only on PyTorch, NumPy, and scikit-learn. Plotting dependencies are optional.
+The core package depends only on PyTorch, NumPy, and scikit-learn. The demo extra adds Matplotlib and Jupyter.
 
 ## Quick start: vector outcome
 
@@ -88,7 +95,7 @@ print(model.diagnostics())
 
 With `architecture="auto"` (the default), `(N,d_y)` outcomes select an MLP automatically.
 
-A fast runnable version is in [`examples/quickstart.py`](examples/quickstart.py).
+A fully executed walkthrough is in [`examples/demo.ipynb`](examples/demo.ipynb). The notebook is committed with its outputs, so the geometry and learned transports are visible directly on GitHub; it can also be re-run end-to-end on CPU.
 
 ## Image outcomes
 
@@ -109,9 +116,7 @@ model.fit(X, A, images)
 images_a1 = model.sample(a=1, n=64)
 ```
 
-The default nuisance for images is a U-Net conditioned on both `X` and `A`; the target U-Net is
-conditioned only on the treatment arm. See [`examples/image_api.py`](examples/image_api.py) for a
-small API demonstration.
+The default nuisance for images is a U-Net conditioned on both `X` and `A`; the target U-Net is conditioned only on the treatment arm.
 
 ## Independent versus EOT coupling
 
@@ -168,8 +173,7 @@ The propensity object must be callable on a torch tensor `X` and return one valu
 sample_conditional(x, a, n_per_context=1)
 ```
 
-and return `(N, ...)` when one draw is requested, or `(N, M, ...)` for `M` draws. See
-[`examples/custom_nuisances.py`](examples/custom_nuisances.py).
+and return `(N, ...)` when one draw is requested, or `(N, M, ...)` for `M` draws.
 
 ## Diagnostics
 
@@ -218,11 +222,7 @@ deconfoundingfm/
 │           ├── mlp.py
 │           └── unet.py
 ├── examples/
-│   ├── quickstart.py
-│   ├── demo.ipynb
-│   ├── synthetic_1d.py
-│   ├── custom_nuisances.py
-│   └── image_api.py
+│   └── demo.ipynb
 ├── tests/
 └── .github/workflows/
 ```
