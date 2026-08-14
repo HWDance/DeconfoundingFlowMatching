@@ -1,7 +1,7 @@
 # DeconfoundingFM
 
-**DeconfoundingFM** learns a flow from an observational treatment-conditional outcome distribution
-\(P(Y\mid A=a)\) to the counterfactual/interventional distribution \(P(Y(a))\), using flow matching
+**DeconfoundingFM** learns a flow from the observational treatment-conditional outcome distribution
+$P(Y\mid A=a)$ to the counterfactual/interventional distribution $P(Y(a))$, using flow matching
 and a doubly robust estimating objective.
 
 This repository is the **applied implementation** of:
@@ -10,13 +10,7 @@ This repository is the **applied implementation** of:
 > *Debiased Counterfactual Generation via Flow Matching from Observations*.  
 > arXiv:2605.07665, 2026.
 
-The paper-reproduction repository can remain broad and experiment-heavy. This repository deliberately
-contains only the reusable method, focused demo notebooks, tests, and packaging needed to apply it to new data.
-
-## What is consolidated here?
-
-The research code evolved several parallel target-flow files for independent coupling, OT coupling,
-vector outcomes, and image outcomes. The applied package now uses **one canonical target
+<!-- The package uses **one canonical target
 implementation**:
 
 - `coupling="independent"` gives the standard doubly robust flow-matching estimator;
@@ -25,14 +19,14 @@ implementation**:
 - image outcomes use a U-Net velocity.
 
 Likewise, there is **one conditional outcome nuisance implementation** for \(P(Y\mid X,A)\): an MLP
-for vector outcomes and a covariate-conditioned U-Net for images.
+for vector outcomes and a covariate-conditioned U-Net for images. -->
 
 See [`docs/IMPLEMENTATION_NOTES.md`](docs/IMPLEMENTATION_NOTES.md) for the exact mapping from the
 research source and the verification performed during the refactor.
 
 ## Status and scope
 
-This is an **alpha research release**. The high-level API currently supports:
+This repo is still in **beta mode**. The high-level API currently supports:
 
 - binary treatment `A in {0, 1}`;
 - vector/tabular covariates `X`;
@@ -97,7 +91,7 @@ With `architecture="auto"` (the default), `(N,d_y)` outcomes select an MLP autom
 
 For vector outcomes, the package defaults intentionally use a small **one-hidden-layer MLP of width 64**, a target learning rate of `1e-4`, `10_000` target optimizer updates, batch size `256`, and a 64-draw cached plug-in reservoir (`plugin_batch=4`). The executed public demo notebook intentionally overrides these with a target learning rate of `3e-4` and `20_000` target updates.
 
-A single runnable walkthrough is in [`examples/demo.ipynb`](examples/demo.ipynb). The demo keeps the 1x64 MLP, 10,000-update budget, batch size 256, and 64-draw plug-in reservoir, while using a target learning rate of `3e-4`. It compares DeconfoundingFM, OT-DeconfoundingFM, and a matched Gaussian-base FM baseline on a structured three-mode problem where the Gaussian base overlaps the central target mode. The notebook includes the source/target geometry, final generated distributions, **SW2 convergence at 250/500/1k/2k/5k/10k updates**, and learned trajectories. The OT run is compute-heavier on CPU and substantially faster on GPU.
+A single runnable walkthrough is in [`examples/demo.ipynb`](examples/demo.ipynb). The demo keeps the 1x64 MLP, 10,000-update budget, batch size 256, and 64-draw plug-in reservoir, while using a target learning rate of `3e-4`. It compares DeconfoundingFM, OT-DeconfoundingFM, and a matched Gaussian-base FM baseline on a structured three-mode problem where the Gaussian base overlaps the central target mode. The notebook includes the source/target geometry, final generated distributions, **SW2 convergence at 250/500/1k/2k/5k/10k updates**, and learned trajectories.
 
 
 ### Exact optimizer-step budgets
@@ -148,13 +142,7 @@ DeconfoundingFMConfig(coupling="ot")
 ```
 
 to construct minibatch entropic-OT conditionals between plug-in counterfactual draws and the
-observational base. This often gives lower-energy paths, but the estimated coupling introduces an
-additional source of statistical error that is not first-order corrected by the fixed-coupling EIF.
-Accordingly, EOT is exposed as an **experimental** option.
-
-The refactor preserves the research code's adaptive EOT regularization convention. A discrepancy
-between that convention and one sentence in the paper implementation appendix is documented in
-[`docs/IMPLEMENTATION_NOTES.md`](docs/IMPLEMENTATION_NOTES.md).
+observational base. This often gives lower-energy paths which can be easier fit.
 
 ## Default nuisance models
 
@@ -240,8 +228,6 @@ deconfoundingfm/
 └── .github/workflows/
 ```
 
-There is no second `doflow`/`backends` package: the selected research implementation has been
-consolidated into the actual DeconfoundingFM package.
 
 ## Lower-level API
 
@@ -257,15 +243,12 @@ from deconfoundingfm.integrators import integrate_midpoint
 
 ## Causal interpretation
 
-For the standard causal interpretation of `P(Y(a))`, the usual identifying conditions are required:
-consistency, conditional exchangeability given `X`, and positivity/overlap. In generative
+For the standard causal interpretation of $P(Y(a))$, the usual identifying conditions are required:
+consistency, conditional exchangeability given $X$, and positivity/overlap. In generative
 rebalancing applications without that causal interpretation, the same target can instead be read as
-replacing the empirical `(A,X)` regime by `A=a` and the marginal distribution of `X`, while retaining
-the conditional outcome law.
+replacing as the distribution of outcomes with attribute $A=a$ in the regime where $A \perp X$.
 
 ## Tests
-
-The test suite exercises the actual configuration matrix rather than historical module names:
 
 - vector target + independent coupling;
 - vector target + EOT;
