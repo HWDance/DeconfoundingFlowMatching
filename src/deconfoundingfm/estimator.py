@@ -33,12 +33,12 @@ class DeconfoundingFMConfig:
 
     # Target deconfounding flow.
     hidden: int = 64
-    layers: int = 2
+    layers: int = 1
     unet_channels: int = 32
     batch_size: Optional[int] = None
     lr: Optional[float] = None
     epochs: int = 1000
-    iterations: Optional[int] = None
+    iterations: Optional[int] = 10_000
     ode_steps: int = 100
     min_propensity: float = 0.01
     base_kind: Literal["empirical", "gaussian"] = "empirical"
@@ -52,7 +52,7 @@ class DeconfoundingFMConfig:
 
     # Conditional outcome nuisance P(Y | X, A).
     nuisance_hidden: int = 64
-    nuisance_layers: int = 2
+    nuisance_layers: int = 1
     nuisance_unet_channels: int = 32
     nuisance_film_encoder: bool = False
     nuisance_film_hidden: int = 64
@@ -165,9 +165,9 @@ class DeconfoundingFM:
     def _resolved_training_options(self, architecture: str) -> dict[str, Any]:
         image = architecture == "unet"
         return {
-            "batch_size": self.config.batch_size or (64 if image else 512),
-            "lr": self.config.lr or (1e-4 if image else 1e-3),
-            "plugin_reservoir": self.config.plugin_reservoir or (1 if image else 32),
+            "batch_size": self.config.batch_size or (64 if image else 256),
+            "lr": self.config.lr or 1e-4,
+            "plugin_reservoir": self.config.plugin_reservoir or (1 if image else 64),
             "plugin_batch": self.config.plugin_batch or (1 if image else 4),
             "update_plugin_reservoir": (
                 self.config.update_plugin_reservoir

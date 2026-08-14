@@ -95,18 +95,20 @@ print(model.diagnostics())
 
 With `architecture="auto"` (the default), `(N,d_y)` outcomes select an MLP automatically.
 
-A runnable walkthrough with committed outputs is in [`examples/demo.ipynb`](examples/demo.ipynb). The notebook is committed with its outputs, so the geometry and learned transports are visible directly on GitHub; it can also be re-run end-to-end on CPU.
+For vector outcomes, the applied defaults intentionally use a small **one-hidden-layer MLP of width 64**, a target learning rate of `1e-4`, `10_000` target optimizer updates, batch size `256`, and a 64-draw cached plug-in reservoir (`plugin_batch=4`). These are the settings used in the demo.
+
+A runnable walkthrough is in [`examples/demo.ipynb`](examples/demo.ipynb). It uses the same 1x64 MLP, `1e-4` target learning rate, 10,000-update budget, batch size 256, and 64-draw plug-in reservoir described above. The full OT run is compute-heavier on CPU but runs directly from the notebook and is substantially faster on GPU.
 
 
 ### Exact optimizer-step budgets
 
-For comparisons where the number of gradient updates should be controlled directly, set `iterations`:
+The default vector configuration uses an exact 10,000-update target budget. To change it, set `iterations`:
 
 ```python
 DeconfoundingFMConfig(iterations=10_000)
 ```
 
-This runs exactly 10,000 target-flow optimizer updates regardless of dataset or minibatch size. If `iterations=None`, training falls back to the epoch budget in `epochs`. The demo uses 10,000 target iterations for DeconfoundingFM, OT-DeconfoundingFM, and the Gaussian-base comparison.
+This runs exactly 10,000 target-flow optimizer updates regardless of dataset or minibatch size. If `iterations=None`, training falls back to the epoch budget in `epochs`. The demo uses the default 10,000 target iterations for DeconfoundingFM, OT-DeconfoundingFM, and the Gaussian-base comparison.
 
 ## Image outcomes
 

@@ -26,16 +26,16 @@ from ..couplings import sinkhorn_target_dual, sample_from_ot_conditional
 class DeconfoundingFlowConfig:
     dim_y: int
     hidden: int = 64
-    layers: int = 2
+    layers: int = 1
     base_kind: str = "empirical"
-    batch_size: int = 1024
-    lr: float = 1e-3
+    batch_size: int = 256
+    lr: float = 1e-4
     epochs: int = 1000
-    iterations: Optional[int] = None
+    iterations: Optional[int] = 10_000
     ode_steps: int = 100
     min_propensity: float = 1e-2
-    plugin_reservoir: int = 1000
-    plugin_batch: int = 10
+    plugin_reservoir: int = 64
+    plugin_batch: int = 4
     update_plugin_reservoir: bool = False
     plugin_reservoir_update_frequency: int = 50
     base_noise_std: float = 0.0

@@ -11,7 +11,7 @@ from typing import Optional
 class FMVelocityConfig:
     dim_y: int
     hidden: int = 64
-    layers: int = 2
+    layers: int = 1
     context_dim: int = 0     
 
 

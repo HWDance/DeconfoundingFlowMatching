@@ -12,6 +12,7 @@ def test_image_target_independent_and_eot(use_ot):
     cfg = DeconfoundingFlowConfig(
         dim_y=1,
         epochs=1,
+        iterations=None,
         batch_size=4,
         plugin_reservoir=1,
         plugin_batch=1,

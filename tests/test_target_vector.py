@@ -11,6 +11,7 @@ def test_vector_target_independent_and_eot(use_ot):
     cfg = DeconfoundingFlowConfig(
         dim_y=2,
         epochs=1,
+        iterations=None,
         batch_size=12,
         plugin_reservoir=1,
         plugin_batch=1,

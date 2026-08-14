@@ -27,31 +27,13 @@ Build-environment result:
 
 ## 3. Exact 10,000-iteration demo runs
 
-The committed demo outputs were generated from the same deterministic observational dataset and the same fitted nuisance estimators. Each target was run separately for **exactly 10,000 optimizer updates**:
+The public demo uses one-hidden-layer width-64 MLPs for vector target flows, target learning rate `1e-4`, a 64-draw cached plug-in reservoir (`plugin_batch=4`), and exactly **10,000 optimizer updates** for each target method. The notebook uses the package-level vector defaults: batch size 256, a 64-draw plug-in reservoir, 20 Sinkhorn iterations, and OT source batch 128.
 
-```text
-DeconfoundingFM       10,000 updates
-OT-DeconfoundingFM    10,000 updates
-Gaussian-base FM      10,000 updates
-```
-
-The demo uses a three-component Gaussian-mixture outcome structure, moderate covariate effects, and treatment selection through `sigmoid(3.2 X)`. With target learning rate `1e-4`, the committed arm-1 evaluation gives:
-
-```text
-SW2 observed source       -> target: 0.432
-SW2 DeconfoundingFM       -> target: 0.393
-SW2 OT-DeconfoundingFM    -> target: 0.262
-SW2 Gaussian-base FM      -> target: 0.588
-
-Mean path energy, DeconfoundingFM:    6.623
-Mean path energy, OT-DeconfoundingFM: 0.189
-```
-
-Thus the demo exhibits both intended effects: the observational base avoids reconstructing the multimodal outcome geometry from Gaussian noise, while the OT coupling yields a much lower-energy deconfounding transport.
+The notebook source has been updated to these settings. Stored outputs were cleared rather than retaining results from the previous two-layer configuration; rerunning the notebook regenerates the figures and metrics for the one-layer model.
 
 ## 4. Notebook validation
 
-`examples/demo.ipynb` is the only example and is committed with the three figures and numerical outputs embedded for direct viewing on GitHub.
+`examples/demo.ipynb` is the only example. Its cells are configured for the release settings above; outputs from the previous architecture were deliberately cleared to avoid displaying stale results.
 
 To validate the executable code path without conflating correctness with a long benchmark runtime, a temporary copy of the notebook was run end-to-end with the target and nuisance iteration budgets reduced; every cell, including the independent, OT, Gaussian, metrics, energy, and trajectory cells, executed successfully. Separately, the three target configurations used in the committed outputs were each run for the full 10,000 updates as documented above.
 
@@ -59,7 +41,7 @@ The notebook automatically uses CUDA when available and otherwise uses CPU. For 
 
 ## 5. Wheel installation
 
-A `deconfoundingfm-0.2.2-py3-none-any.whl` wheel was built locally with build isolation disabled, installed into a clean target directory with no dependency installation, and the full 18-test suite was rerun against the installed wheel:
+A `deconfoundingfm-0.2.3-py3-none-any.whl` wheel was built locally with build isolation disabled, installed into a clean target directory with no dependency installation, and the full 18-test suite was rerun against the installed wheel:
 
 ```text
 18 passed

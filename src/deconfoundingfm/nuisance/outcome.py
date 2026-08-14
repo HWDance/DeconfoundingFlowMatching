@@ -38,7 +38,7 @@ class ConditionalFlowFMConfig:
 
     # --- MLP velocity ---
     hidden: int = 64
-    layers: int = 2
+    layers: int = 1
 
     # --- optimisation ---
     weight_decay: float = 0.0

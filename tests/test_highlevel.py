@@ -9,6 +9,7 @@ def test_highlevel_default_vector_fit_sample_transform_and_diagnostics():
     cfg = DeconfoundingFMConfig(
         device="cpu",
         epochs=1,
+        iterations=None,
         nuisance_epochs=1,
         ode_steps=1,
         nuisance_ode_steps=1,
@@ -38,6 +39,7 @@ def test_highlevel_image_eot_with_custom_nuisances():
         coupling="eot",
         device="cpu",
         epochs=1,
+        iterations=None,
         ode_steps=1,
         batch_size=4,
         plugin_reservoir=1,
