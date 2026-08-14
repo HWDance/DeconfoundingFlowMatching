@@ -1,58 +1,80 @@
 # Refactor and demo verification
 
-The applied repository was checked at four levels: equivalence against the research source, automated tests, exact optimizer-step runs, and notebook execution.
+The applied repository was checked against the retained research implementation, with automated tests, a full executed demonstration, and packaging/static checks.
 
 ## 1. Research-source equivalence
 
-Before deleting the parallel target implementations, the generalized OT-capable target was compared to the separate independent target in the original repository. With identical model weights, empirical bases, cached nuisance samples, cached propensities, minibatches, and RNG seeds:
+Before deleting the parallel research variants, the generalized OT-capable target was compared against the separate independent implementation with identical weights, empirical bases, nuisance caches, propensity caches, minibatches, and RNG seeds. Vector and image/U-Net target losses agreed exactly in the independent branch. The generalized conditional-outcome nuisance was likewise checked against the older MLP-only implementation. The applied package therefore keeps only the generalized implementations.
 
-- vector target, arm 0/1: exact equality;
-- image/U-Net target, arm 0/1: exact equality.
-
-The new canonical target was then compared with the original generalized target for vector/image outcomes with independent/EOT coupling, again obtaining exact equality away from the explicitly documented robustness fixes. The generalized conditional-outcome nuisance was likewise checked against the older MLP-only implementation and the refactored MLP/UNetX implementation.
+The explicitly documented robustness changes in `IMPLEMENTATION_NOTES.md` are not claimed to be bit-for-bit identical to the old repository; they preserve the intended estimator while fixing shape/clipping issues and making the applied API safer.
 
 ## 2. Automated tests
 
-The current suite contains **18 tests**. In addition to the original vector/image, nuisance, propensity, coupling, integration, and public-API tests, it now checks that:
+The current suite contains **21 tests**, covering package/public imports, vector and image target flows, independent and OT coupling paths, propensity and conditional-outcome nuisances, ODE integration, exact `iterations=k` semantics, checkpoint snapshots, and the public `fit -> sample -> transform` interface.
 
-- `iterations=k` produces exactly `k` optimizer updates regardless of the epoch setting;
-- `coupling="ot"` activates the entropic-OT target path;
-- the exact iteration count is surfaced in diagnostics.
-
-Build-environment result:
+Current result:
 
 ```text
-18 passed
+21 passed
 ```
 
-## 3. Exact 10,000-iteration demo runs
+## 3. Executed public demo
 
-The public demo uses one-hidden-layer width-64 MLPs for vector target flows, target learning rate `1e-4`, a 64-draw cached plug-in reservoir (`plugin_batch=4`), and exactly **10,000 optimizer updates** for each target method. The notebook uses the package-level vector defaults: batch size 256, a 64-draw plug-in reservoir, 20 Sinkhorn iterations, and OT source batch 128.
-
-The notebook source has been updated to these settings. Stored outputs were cleared rather than retaining results from the previous two-layer configuration; rerunning the notebook regenerates the figures and metrics for the one-layer model.
-
-## 4. Notebook validation
-
-`examples/demo.ipynb` is the only example. Its cells are configured for the release settings above; outputs from the previous architecture were deliberately cleared to avoid displaying stale results.
-
-To validate the executable code path without conflating correctness with a long benchmark runtime, a temporary copy of the notebook was run end-to-end with the target and nuisance iteration budgets reduced; every cell, including the independent, OT, Gaussian, metrics, energy, and trajectory cells, executed successfully. Separately, the three target configurations used in the committed outputs were each run for the full 10,000 updates as documented above.
-
-The notebook automatically uses CUDA when available and otherwise uses CPU. For this small CPU example it sets PyTorch to one CPU thread, which avoids excessive thread-pool overhead for the many small operations in minibatch OT.
-
-## 5. Wheel installation
-
-A `deconfoundingfm-0.2.3-py3-none-any.whl` wheel was built locally with build isolation disabled, installed into a clean target directory with no dependency installation, and the full 18-test suite was rerun against the installed wheel:
+The repository contains one demonstration: `examples/demo.ipynb`. Its target settings are:
 
 ```text
-18 passed
+target MLP:           1 hidden layer, width 64
+target learning rate: 3e-4
+target updates:       10,000
+batch size:           256
+plugin reservoir:     64
+plugin batch:          4
+OT Sinkhorn iters:    20
+OT source batch:      128
 ```
 
-## 6. Static/package checks
+The propensity and conditional-outcome nuisances are fitted once and reused across all three target methods. The outcome design has three well-separated Gaussian-mixture components; the middle counterfactual mode is centered at the origin, giving the standard Gaussian base direct overlap with one target mode while leaving the other two modes distant.
 
+The notebook was executed end-to-end on CPU with `nbconvert`. DeconfoundingFM, OT-DeconfoundingFM, and Gaussian-base FM each completed the full **10,000 optimizer updates** with no cell errors. The committed final diagnostics are:
+
+```text
+SW2 observed source       -> target: 0.432
+SW2 DeconfoundingFM       -> target: 0.344
+SW2 OT-DeconfoundingFM    -> target: 0.276
+SW2 Gaussian-base FM      -> target: 0.589
+
+Mean path energy, DeconfoundingFM:    6.832
+Mean path energy, OT-DeconfoundingFM: 0.124
+```
+
+The final SW2 values use fixed source samples so that they agree exactly with the 10,000-update convergence checkpoint.
+
+## 4. SW2 convergence checkpoints
+
+The target velocity parameters are snapshotted during the same continuous optimization run. Snapshotting copies parameters to CPU and does not consume RNG state or alter optimization. Every checkpoint is evaluated on the same fixed source and target samples.
+
+```text
+updates      DeconfoundingFM   OT-DeconfoundingFM   Gaussian-base FM
+   250         0.348              0.389              1.609
+   500         0.306              0.339              0.963
+ 1,000         0.303              0.299              0.963
+ 2,000         0.309              0.292              0.970
+ 5,000         0.305              0.294              0.842
+10,000         0.344              0.276              0.589
+```
+
+The convergence curve is embedded as the fourth figure in the notebook, alongside the geometry, final generated distributions, and trajectory plots.
+
+## 5. Packaging/static checks
+
+- full source test suite: **21 passed**;
 - package source compiles successfully;
 - package source contains no imports from the old `doflow` namespace;
 - the public package has one target implementation and one conditional-outcome implementation;
-- `examples/` contains only `demo.ipynb`;
-- the notebook contains no error outputs.
+- `examples/` contains only the executed `demo.ipynb`;
+- the notebook contains four embedded figures and no error outputs;
+- the demonstration environment is CPU-only, so a CUDA smoke test remains appropriate before declaring a release candidate.
 
-The verification environment exposes CPU-only PyTorch, so a CUDA runtime smoke test remains appropriate before declaring a release candidate.
+## 6. Wheel installation
+
+The package was built and installed without network dependencies, then imported successfully as version `0.2.8`.

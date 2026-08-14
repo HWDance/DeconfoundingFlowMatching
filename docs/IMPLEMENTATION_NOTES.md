@@ -49,6 +49,11 @@ A small number of changes are intentional rather than purely cosmetic:
   diagnostics.
 - **Optimization scope:** the target optimizer is constructed from the target velocity parameters only;
   nuisance models are fixed during target training.
+- **CPU-stable OT primitives:** pairwise squared Euclidean costs use the algebraically equivalent
+  matrix-multiplication formula rather than `torch.cdist(...).square()`, and row-wise samples from the
+  discrete OT conditional use inverse-CDF categorical sampling rather than `torch.multinomial`.
+  These changes preserve the same entropic-OT objective/conditional distribution while avoiding
+  severe CPU slowdowns observed for long runs with sharply peaked categorical conditionals.
 - **Validation:** shapes, finite values, treatment support, OT epsilon, and nuisance-output contracts are
   checked explicitly so failures occur near their source.
 

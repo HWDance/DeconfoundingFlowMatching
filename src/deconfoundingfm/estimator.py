@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal, Optional
+from typing import Any, Iterable, Literal, Optional
 
 import numpy as np
 import torch
@@ -326,7 +326,15 @@ class DeconfoundingFM:
             result["eot_epsilon_last"] = float(self.model_._ot_eps)
         return result
 
-    def fit(self, X: Any, A: Any, Y: Any, *, verbose: bool = True) -> "DeconfoundingFM":
+    def fit(
+        self,
+        X: Any,
+        A: Any,
+        Y: Any,
+        *,
+        verbose: bool = True,
+        checkpoint_steps: Optional[Iterable[int]] = None,
+    ) -> "DeconfoundingFM":
         torch.manual_seed(self.config.seed)
         np.random.seed(self.config.seed)
         if torch.cuda.is_available():
@@ -351,7 +359,9 @@ class DeconfoundingFM:
             raise TypeError("outcome_model must implement sample_conditional(...).")
 
         self.model_ = self._build_target(X, Y, architecture, opts)
-        self.model_.fit(X, A, Y, verbose=verbose)
+        self.model_.fit(
+            X, A, Y, verbose=verbose, checkpoint_steps=checkpoint_steps
+        )
         self.model_.eval()
         self._fitted = True
         self.diagnostics_ = self._diagnostics(X, A)

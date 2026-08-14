@@ -7,7 +7,7 @@ and image outcomes share this implementation.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Iterable, Optional
 
 import torch
 import torch.nn as nn
@@ -487,8 +487,25 @@ class DeconfoundingFlow(nn.Module):
     # ===============================================================
     # Training
     # ===============================================================
-    def fit(self, X, A, Y, *, verbose: bool = False):
-        """Fit the deconfounding target flow using fixed nuisance estimators."""
+    def fit(
+        self,
+        X,
+        A,
+        Y,
+        *,
+        verbose: bool = False,
+        checkpoint_steps: Optional[Iterable[int]] = None,
+    ):
+        """Fit the deconfounding target flow using fixed nuisance estimators.
+
+        Parameters
+        ----------
+        checkpoint_steps:
+            Optional 1-indexed optimizer iterations at which to snapshot the
+            velocity parameters. Snapshots are stored on CPU in
+            ``checkpoint_state_dicts_`` and do not perturb optimization or RNG
+            state. This is mainly useful for convergence diagnostics.
+        """
         device = next(self.velocity.parameters()).device
         X, A, Y = X.to(device), A.to(device), Y.to(device)
 
@@ -517,6 +534,10 @@ class DeconfoundingFlow(nn.Module):
         self.train()
 
         history = []
+        checkpoint_set = set() if checkpoint_steps is None else {int(s) for s in checkpoint_steps}
+        if any(s < 1 for s in checkpoint_set):
+            raise ValueError("checkpoint_steps must contain positive 1-indexed iterations.")
+        self.checkpoint_state_dicts_ = {}
 
         # ``iterations`` gives an exact optimizer-step budget, independent of
         # dataset size and batch size.  ``epochs`` is retained as the backward-
@@ -543,6 +564,13 @@ class DeconfoundingFlow(nn.Module):
                 opt.step()
                 loss_value = float(loss.detach())
                 history.append(loss_value)
+
+                current_step = step + 1
+                if current_step in checkpoint_set:
+                    self.checkpoint_state_dicts_[current_step] = {
+                        key: value.detach().cpu().clone()
+                        for key, value in self.velocity.state_dict().items()
+                    }
 
                 if verbose and (
                     step == 0 or (step + 1) % 1000 == 0 or step + 1 == n_steps

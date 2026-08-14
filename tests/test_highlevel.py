@@ -83,3 +83,25 @@ def test_highlevel_exact_iteration_budget_and_ot_alias():
     assert model.diagnostics()["training_iterations"] == 3
     assert model.diagnostics()["coupling"] == "ot"
     assert "eot_epsilon_last" in model.diagnostics()
+
+
+def test_highlevel_checkpoint_snapshots_are_recorded():
+    X, A, Y = vector_data(n=32, dim_y=1)
+    cfg = DeconfoundingFMConfig(
+        device="cpu",
+        iterations=4,
+        ode_steps=1,
+        batch_size=16,
+        plugin_reservoir=1,
+        plugin_batch=1,
+    )
+    model = DeconfoundingFM(
+        cfg,
+        outcome_model=DummyOutcome((1,)),
+        propensity_model=DummyPropensity(),
+    ).fit(X, A, Y, verbose=False, checkpoint_steps=[1, 3, 4])
+
+    assert sorted(model.model_.checkpoint_state_dicts_) == [1, 3, 4]
+    final_state = model.velocity_.state_dict()
+    for key, value in model.model_.checkpoint_state_dicts_[4].items():
+        assert torch.equal(value, final_state[key].detach().cpu())

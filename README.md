@@ -11,7 +11,7 @@ This repository is the **applied implementation** of:
 > arXiv:2605.07665, 2026.
 
 The paper-reproduction repository can remain broad and experiment-heavy. This repository deliberately
-contains only the reusable method, one executable demo notebook, tests, and packaging needed to apply it to new data.
+contains only the reusable method, focused demo notebooks, tests, and packaging needed to apply it to new data.
 
 ## What is consolidated here?
 
@@ -95,9 +95,9 @@ print(model.diagnostics())
 
 With `architecture="auto"` (the default), `(N,d_y)` outcomes select an MLP automatically.
 
-For vector outcomes, the applied defaults intentionally use a small **one-hidden-layer MLP of width 64**, a target learning rate of `1e-4`, `10_000` target optimizer updates, batch size `256`, and a 64-draw cached plug-in reservoir (`plugin_batch=4`). These are the settings used in the demo.
+For vector outcomes, the applied defaults intentionally use a small **one-hidden-layer MLP of width 64**, a target learning rate of `1e-4`, `10_000` target optimizer updates, batch size `256`, and a 64-draw cached plug-in reservoir (`plugin_batch=4`).
 
-A runnable walkthrough is in [`examples/demo.ipynb`](examples/demo.ipynb). It uses the same 1x64 MLP, `1e-4` target learning rate, 10,000-update budget, batch size 256, and 64-draw plug-in reservoir described above. The full OT run is compute-heavier on CPU but runs directly from the notebook and is substantially faster on GPU.
+A single runnable walkthrough is in [`examples/demo.ipynb`](examples/demo.ipynb). The demo keeps the 1x64 MLP, 10,000-update budget, batch size 256, and 64-draw plug-in reservoir, while using a target learning rate of `3e-4`. It compares DeconfoundingFM, OT-DeconfoundingFM, and a matched Gaussian-base FM baseline on a structured three-mode problem where the Gaussian base overlaps the central target mode. The notebook includes the source/target geometry, final generated distributions, **SW2 convergence at 250/500/1k/2k/5k/10k updates**, and learned trajectories. The OT run is compute-heavier on CPU and substantially faster on GPU.
 
 
 ### Exact optimizer-step budgets

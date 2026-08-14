@@ -5,6 +5,18 @@ from __future__ import annotations
 import torch
 
 
+def _squared_euclidean(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    """Pairwise squared Euclidean distances.
+
+    The matmul formulation is faster and more predictable than
+    ``torch.cdist(...).square()`` for the small OT minibatches used here,
+    particularly on CPU.
+    """
+    x2 = x.square().sum(dim=1, keepdim=True)
+    y2 = y.square().sum(dim=1).unsqueeze(0)
+    return (x2 + y2 - 2.0 * (x @ y.T)).clamp_min_(0.0)
+
+
 def _validate_points(x_src: torch.Tensor, x_tgt: torch.Tensor, eps: float, n_iters: int):
     if x_src.ndim != 2 or x_tgt.ndim != 2:
         raise ValueError("OT utilities expect flattened 2D tensors (N,d).")
@@ -33,7 +45,7 @@ def entropic_coupling_plan(
     ns, nt = x_src.shape[0], x_tgt.shape[0]
     log_a = -torch.log(torch.tensor(float(ns), device=x_src.device, dtype=x_src.dtype))
     log_b = -torch.log(torch.tensor(float(nt), device=x_src.device, dtype=x_src.dtype))
-    cost = torch.cdist(x_src, x_tgt, p=2).square()
+    cost = _squared_euclidean(x_src, x_tgt)
     log_kernel = -cost / float(eps)
     u = torch.zeros(ns, device=x_src.device, dtype=x_src.dtype)
     v = torch.zeros(nt, device=x_src.device, dtype=x_src.dtype)
@@ -64,7 +76,7 @@ def sinkhorn_target_dual(
     ns, nt = x_src.shape[0], x_tgt.shape[0]
     log_a = -torch.log(torch.tensor(float(ns), device=x_src.device, dtype=x_src.dtype))
     log_b = -torch.log(torch.tensor(float(nt), device=x_src.device, dtype=x_src.dtype))
-    cost = torch.cdist(x_src, x_tgt, p=2).square()
+    cost = _squared_euclidean(x_src, x_tgt)
     log_kernel = -cost / float(eps)
     u = torch.zeros(ns, device=x_src.device, dtype=x_src.dtype)
     v = torch.zeros(nt, device=x_src.device, dtype=x_src.dtype)
@@ -95,7 +107,7 @@ def sinkhorn_target_dual_weighted(
     nt = x_tgt.shape[0]
     log_a = torch.log(source_weights.clamp_min(1e-12))
     log_b = -torch.log(torch.tensor(float(nt), device=x_src.device, dtype=x_src.dtype))
-    log_kernel = -torch.cdist(x_src, x_tgt, p=2).square() / float(eps)
+    log_kernel = -_squared_euclidean(x_src, x_tgt) / float(eps)
     u = torch.zeros(x_src.shape[0], device=x_src.device, dtype=x_src.dtype)
     v = torch.zeros(nt, device=x_src.device, dtype=x_src.dtype)
     for _ in range(int(n_iters)):
@@ -118,7 +130,7 @@ def ot_conditional_probabilities(
         raise ValueError("Incompatible OT conditional shapes.")
     if eps <= 0:
         raise ValueError("eps must be positive.")
-    cost = torch.cdist(y, x_tgt, p=2).square()
+    cost = _squared_euclidean(y, x_tgt)
     logits = v.reshape(1, -1) - cost / float(eps)
     probs = torch.softmax(logits, dim=1)
     if not torch.isfinite(probs).all():
@@ -135,5 +147,11 @@ def sample_from_ot_conditional(
 ) -> torch.Tensor:
     """Sample one target-support point from the EOT conditional per query."""
     probs = ot_conditional_probabilities(y, x_tgt, v, eps)
-    idx = torch.multinomial(probs, num_samples=1, replacement=True).squeeze(1)
+
+    # Row-wise inverse-CDF sampling is distributionally equivalent to
+    # ``torch.multinomial`` and avoids severe CPU slowdowns that can occur
+    # for very peaked OT conditionals.
+    cdf = probs.cumsum(dim=1)
+    u = torch.rand((probs.shape[0], 1), device=probs.device, dtype=probs.dtype)
+    idx = (cdf < u).sum(dim=1).clamp_max(x_tgt.shape[0] - 1)
     return x_tgt[idx]
