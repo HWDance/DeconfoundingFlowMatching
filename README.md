@@ -95,7 +95,7 @@ print(model.diagnostics())
 
 With `architecture="auto"` (the default), `(N,d_y)` outcomes select an MLP automatically.
 
-For vector outcomes, the applied defaults intentionally use a small **one-hidden-layer MLP of width 64**, a target learning rate of `1e-4`, `10_000` target optimizer updates, batch size `256`, and a 64-draw cached plug-in reservoir (`plugin_batch=4`).
+For vector outcomes, the package defaults intentionally use a small **one-hidden-layer MLP of width 64**, a target learning rate of `1e-4`, `10_000` target optimizer updates, batch size `256`, and a 64-draw cached plug-in reservoir (`plugin_batch=4`). The executed public demo notebook intentionally overrides these with a target learning rate of `3e-4` and `20_000` target updates.
 
 A single runnable walkthrough is in [`examples/demo.ipynb`](examples/demo.ipynb). The demo keeps the 1x64 MLP, 10,000-update budget, batch size 256, and 64-draw plug-in reservoir, while using a target learning rate of `3e-4`. It compares DeconfoundingFM, OT-DeconfoundingFM, and a matched Gaussian-base FM baseline on a structured three-mode problem where the Gaussian base overlaps the central target mode. The notebook includes the source/target geometry, final generated distributions, **SW2 convergence at 250/500/1k/2k/5k/10k updates**, and learned trajectories. The OT run is compute-heavier on CPU and substantially faster on GPU.
 

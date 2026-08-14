@@ -35,7 +35,7 @@ OT source batch:      128
 
 The propensity and conditional-outcome nuisances are fitted once and reused across all three target methods. The outcome design has three well-separated Gaussian-mixture components; the middle counterfactual mode is centered at the origin, giving the standard Gaussian base direct overlap with one target mode while leaving the other two modes distant.
 
-The notebook was executed end-to-end on CPU with `nbconvert`. DeconfoundingFM, OT-DeconfoundingFM, and Gaussian-base FM each completed the full **10,000 optimizer updates** with no cell errors. The committed final diagnostics are:
+The notebook was executed end-to-end on CPU with `nbconvert`. DeconfoundingFM, OT-DeconfoundingFM, and Gaussian-base FM each completed the full **20,000 optimizer updates** with no cell errors. The committed final diagnostics are for the 20,000-update demo notebook:
 
 ```text
 SW2 observed source       -> target: 0.432
@@ -77,4 +77,4 @@ The convergence curve is embedded as the fourth figure in the notebook, alongsid
 
 ## 6. Wheel installation
 
-The package was built and installed without network dependencies, then imported successfully as version `0.2.8`.
+The package was built and installed without network dependencies, then imported successfully as version `0.2.9`.
