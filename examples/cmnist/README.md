@@ -1,39 +1,47 @@
-# CMNIST generator-correction demo
+# CMNIST generator-correction study
 
-This example uses the **same ColorMNIST generator as the paper experiments**. The exact original MNIST `t10k` UByte files are bundled in the Python package, so no torchvision download or sklearn fallback is used.
+This study reruns the two generator-correction methods used here: independent-coupling DeconfoundingFM (`decfm`) and OT-DeconfoundingFM (`ot`). It uses the packaged original MNIST `t10k` IDX files and the original red/blue ColorMNIST construction, so the CMNIST data itself requires no download.
 
-Create/activate the repository environment from the repository root first:
+Create or refresh the repository environment from the repository root:
 
 ```bash
 conda env create -f environment.yml
 conda activate deconfoundingfm
+# For an existing environment:
+conda env update -f environment.yml --prune
 ```
 
-The heavy experiment and the notebook are deliberately separated:
+Run the backend and then open or execute the notebook:
 
 ```bash
 python examples/cmnist/run.py --device cuda --output examples/cmnist/results/default
-jupyter notebook examples/cmnist/demo.ipynb
+python -m nbconvert --to notebook --execute --inplace examples/cmnist/demo.ipynb
 ```
 
-`run.py` trains and saves the results bundle. `demo.ipynb` only loads that bundle and plots it.
+## Data and fitted components
 
-## Data construction
+The binary design uses digits `(1, 6)`, `X ~ Uniform(0,1)`, and
+`P(A=1|X=x) = sigmoid(5(x-0.5))`, with `tau=0.08`, `k=10`, and a black background.
 
-The binary causal design uses digits `(1, 6)`, `X ~ Uniform(0,1)`, and
-`P(A=1|X=x) = sigmoid(5(x-0.5))` with the same clipping, recoloring map, `tau=0.08`, `k=10`, and black background as the original research code.
+The fixed labeled population consists of 10,000 grayscale shape draws, each paired with two independent draws from the appropriate `X|A` color distribution, for 20,000 observations. The propensity is estimated by a cross-validated random forest. A generator-base conditional flow estimates `P(Y|X,A)` from those observations, drawing a fresh biased-generator base on every nuisance update. Both target methods start from fresh draws from that same frozen source-generator recipe.
 
-Because the raw t10k file contains all ten digits while the causal experiment uses only two treatment digits, the backend first draws **10,000 grayscale shapes from the original arm-specific digit pools**, then gives each selected grayscale shape **two independent draws from the correct `X|A` color distribution**. This yields the fixed 20,000 labeled observational examples used to estimate the nuisances.
+The observational population is not duplicated in the result bundle. Its complete DGP configuration and seed are saved in `data_manifest.json`, which deterministically reconstructs it. The packaged digit data and generator recipe also let any loaded correction checkpoint draw arbitrarily many fresh base images.
 
-The exact source generator remains separate from that fixed causal dataset: each base request draws a fresh grayscale shape and fresh `X|A=a` color, giving fresh samples from `P(Y|A=a)`.
+## Saved outputs
 
-## What is estimated versus oracle
+The default run uses 20,000 nuisance updates and 20,000 target updates per method. Target velocity checkpoints are saved at 250, 500, 1k, 2k, 5k, 10k, 15k, and 20k updates under `models/{decfm,ot}/`. Each checkpoint contains only correction-flow weights and reconstruction metadata. It deliberately omits nuisance models, propensity fits, optimizer state, plug-in reservoirs, and cached base samples.
 
-- `pi_hat(A|X)`: estimated from the fixed 20k `(X,A)` dataset by random forest with cross-validation.
-- Generator-base `P_hat(Y|X,A)`: estimated from the fixed 20k labeled observations, with its flow-matching base sampled fresh from the exact pretrained-generator stand-in on every optimizer update.
-- Gaussian-base `P_hat_G(Y|X,A)`: a separate, architecture-matched nuisance trained on the same fixed observations from standard Gaussian noise. It has no access to the source generator.
-- DeconfoundingFM / OT-DeconfoundingFM use the generator-base nuisance and fresh source-generator target bases. The Gaussian comparison uses only the Gaussian nuisance and a Gaussian target base.
-- Exact/oracle access is used **only by the generator-based variants** and for held-out evaluation references.
+The result directory contains:
 
+- `metrics.json`: final per-arm and averaged SW2/FID values, using 5,000 fresh samples per arm.
+- `convergence.json`: checkpoint SW2 on one deterministic 512-sample truth/base batch per arm, shared across every method and checkpoint.
+- `color_values.pt` and `color_diagnostics.json`: one per-image foreground color value, `R/(R+B)`, and arm/uniform comparisons.
+- `trajectories.pt` and `trajectory_summary.json`: full trajectories for the top and bottom eight foreground-changing examples selected from one shared batch of 512 source images per arm.
+- `samples.pt`: compact plotting grids only.
+- `model_manifest.json`: portable result-relative checkpoint paths.
+- `data_manifest.json`: deterministic observational-data reconstruction metadata.
+- `config.json` and `run_manifest.json`: exact run and environment metadata.
 
-The backend run now also saves: correction-only model checkpoints, optional FID metrics, CMNIST color-distribution diagnostics, and trajectory summaries including per-dimension $\bar E_v$ and $\bar E_{\dot v}$.
+The FID implementation uses official ImageNet-normalized, pretrained Inception-v3 penultimate features; this definition is recorded in `metrics.json`. SW2 uses the same 256 projection directions for source, independent, and OT comparisons.
+
+The notebook plots the final metrics, sample grids, checkpoint convergence, learned color densities, flow-change extremes, and selected trajectories. It also reloads a saved checkpoint and draws genuinely fresh endpoints and trajectories without loading any training-time sample store.

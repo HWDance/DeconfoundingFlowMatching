@@ -5,7 +5,7 @@ from deconfoundingfm import DeconfoundingFM, DeconfoundingFMConfig
 
 
 def test_public_imports_and_version():
-    assert deconfoundingfm.__version__ == "0.3.4"
+    assert deconfoundingfm.__version__ == "0.3.5"
     assert DeconfoundingFM is not None
     assert DeconfoundingFMConfig is not None
 

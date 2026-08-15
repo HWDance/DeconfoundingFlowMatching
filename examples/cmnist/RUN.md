@@ -1,37 +1,46 @@
-# Run instructions (Codex / cluster)
+# CMNIST cluster run
 
-From a fresh clone, create the checked-in environment first:
+From the repository root, create or refresh the checked-in environment:
 
 ```bash
 conda env create -f environment.yml
 conda activate deconfoundingfm
-python -c "import torch; print('CUDA:', torch.cuda.is_available(), 'device_count:', torch.cuda.device_count())"
+# Existing environment:
+conda env update -f environment.yml --prune
+python -c "import torch, torchvision; print(torch.__version__, torchvision.__version__, torch.cuda.is_available())"
 ```
 
-Then, from the repository root, run the smoke test followed by the full backend and refresh the viewing notebook:
+Run a GPU smoke test first:
 
 ```bash
 python examples/cmnist/run.py --smoke --device cuda --output examples/cmnist/results/smoke
-python examples/cmnist/run.py --device cuda --output examples/cmnist/results/default
-jupyter nbconvert --to notebook --execute --inplace examples/cmnist/demo.ipynb
 ```
 
-If the environment already exists after a pull, refresh it with `conda env update -f environment.yml --prune`.
+Then run the full backend and execute the notebook:
 
-For the full run, do not change the defaults unless explicitly requested. The intended defaults are:
+```bash
+python examples/cmnist/run.py --device cuda --output examples/cmnist/results/default
+python -m nbconvert \
+  --to notebook --execute --inplace \
+  --ExecutePreprocessor.timeout=1200 \
+  examples/cmnist/demo.ipynb
+```
 
-- exact packaged original `t10k` UByte CMNIST source;
-- digits `(1,6)`;
-- `w=5`, `tau=0.08`, `k=10`, `fg_alpha=0`;
-- 10,000 grayscale shape draws × 2 colors = 20,000 fixed labeled observations;
-- propensity estimated by 1000-tree RF with 5-fold depth CV;
-- 20,000 optimizer updates for each of two matched nuisances: generator-base and Gaussian-base;
-- 20,000 target optimizer updates;
-- batch 128, U-Net width 32, ODE steps 50;
-- plugin reservoir 2;
-- checkpoints 250, 500, 1k, 2k, 5k, 10k, 15k, 20k.
+The intended full defaults are:
 
-After the backend finishes, verify that `config.json`, `metrics.json`, `convergence.json`, `run_manifest.json`, and `samples.pt` all exist in the requested result directory. Then execute the notebook so its committed outputs match the saved bundle.
+- exact packaged original `t10k` IDX source and digits `(1,6)`;
+- `w=5`, `tau=0.08`, `k=10`, and `fg_alpha=0`;
+- 10,000 grayscale shapes x two colors = 20,000 fixed observations;
+- 1,000-tree propensity random forest with five-fold depth cross-validation;
+- one generator-base outcome nuisance trained for 20,000 optimizer updates;
+- independent-coupling and OT target flows, each trained for 20,000 updates;
+- batch size 128, U-Net width 32, 50 midpoint ODE steps;
+- plug-in reservoir 2 and plug-in batch 1;
+- target checkpoints at 250, 500, 1k, 2k, 5k, 10k, 15k, and 20k;
+- final SW2/FID evaluation on 5,000 fresh samples per arm;
+- checkpoint SW2 on one deterministic 512-sample truth/base batch per arm, shared across methods and steps;
+- trajectory selection from a shared batch of 512 per arm, saving top/bottom eight.
 
+A successful result directory has `config.json`, `metrics.json`, `convergence.json`, `run_manifest.json`, `data_manifest.json`, `model_manifest.json`, `samples.pt`, `color_values.pt`, `color_diagnostics.json`, `trajectories.pt`, `trajectory_summary.json`, and both checkpoint directories. Checkpoint payloads must have no nuisance, propensity, optimizer, plug-in-reservoir, or cached-base tensors.
 
-The backend run now also saves: correction-only model checkpoints, optional FID metrics, CMNIST color-distribution diagnostics, and trajectory summaries including per-dimension $\bar E_v$ and $\bar E_{\dot v}$.
+The supplied `hpc/cmnist_full.sbatch` requests one L40S, 32 GiB host memory, and four hours. It runs the backend, audits the result bundle, and executes the notebook.

@@ -290,7 +290,7 @@ Apache License 2.0. See [`LICENSE`](LICENSE).
 
 The repository also includes a heavier **ColorMNIST generator-correction demo** in `examples/cmnist/`. It bundles the exact original MNIST `t10k` UByte files and the same foreground-color DGP used by the research experiments (digits `(1,6)`, `tau=0.08`, `k=10`, black background, and the original red/blue map). No torchvision download or sklearn substitute is used.
 
-The backend constructs a fixed labeled dataset with **10,000 grayscale shape draws × two independent `X|A` color draws = 20,000 observations**. `pi_hat(A|X)` and both conditional nuisances are estimated from those observations. DeconfoundingFM and OT-DeconfoundingFM use a nuisance and target flow based on fresh draws from the frozen biased source-generator stand-in. The Gaussian comparison instead trains its own architecture-matched nuisance from Gaussian noise and uses a Gaussian target base; neither Gaussian flow has access to the source generator.
+The backend constructs a fixed labeled dataset with **10,000 grayscale shape draws × two independent `X|A` color draws = 20,000 observations**. `pi_hat(A|X)` and the conditional outcome nuisance are estimated from those observations. The study reruns independent-coupling DeconfoundingFM and OT-DeconfoundingFM; both use a generator-base nuisance and fresh target bases from the frozen biased source-generator stand-in.
 
 The intended workflow is:
 

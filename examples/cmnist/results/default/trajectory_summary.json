@@ -1,0 +1,78 @@
+{
+  "selection_batch_n_per_arm": 512,
+  "selection_keep_per_extreme": 8,
+  "selection_metric": "mean absolute RGB change over source foreground pixels",
+  "shared_source_batch_across_methods": true,
+  "decfm": {
+    "arm0": {
+      "mean_foreground_pixel_change": 0.026163250207901,
+      "mean_path_length": 0.09634612500667572,
+      "mean_endpoint_displacement": 0.01347468700259924,
+      "mean_straightness_ratio": 9.714449882507324,
+      "mean_bar_E_v": 0.01016011368483305,
+      "mean_bar_E_vdot": 0.7351630330085754,
+      "n_trajectories": 512,
+      "ode_steps": 50,
+      "dimension": 2352,
+      "selection": "mean absolute RGB change over source foreground pixels"
+    },
+    "arm1": {
+      "mean_foreground_pixel_change": 0.026522446423768997,
+      "mean_path_length": 0.14873287081718445,
+      "mean_endpoint_displacement": 0.0202245581895113,
+      "mean_straightness_ratio": 10.381429672241211,
+      "mean_bar_E_v": 0.02314075455069542,
+      "mean_bar_E_vdot": 1.4949567317962646,
+      "n_trajectories": 512,
+      "ode_steps": 50,
+      "dimension": 2352,
+      "selection": "mean absolute RGB change over source foreground pixels"
+    },
+    "average_over_arms": {
+      "mean_foreground_pixel_change": 0.026342848315835,
+      "mean_path_length": 0.12253949791193008,
+      "mean_endpoint_displacement": 0.01684962259605527,
+      "mean_straightness_ratio": 10.047939777374268,
+      "mean_bar_E_v": 0.016650434117764235,
+      "mean_bar_E_vdot": 1.11505988240242,
+      "dimension": 2352,
+      "n_trajectories_per_arm": 512
+    }
+  },
+  "ot": {
+    "arm0": {
+      "mean_foreground_pixel_change": 0.06134834885597229,
+      "mean_path_length": 0.03929102420806885,
+      "mean_endpoint_displacement": 0.029323766008019447,
+      "mean_straightness_ratio": 1.5234931707382202,
+      "mean_bar_E_v": 0.0018080472946166992,
+      "mean_bar_E_vdot": 0.02190297096967697,
+      "n_trajectories": 512,
+      "ode_steps": 50,
+      "dimension": 2352,
+      "selection": "mean absolute RGB change over source foreground pixels"
+    },
+    "arm1": {
+      "mean_foreground_pixel_change": 0.08431418240070343,
+      "mean_path_length": 0.08179476857185364,
+      "mean_endpoint_displacement": 0.05923635512590408,
+      "mean_straightness_ratio": 1.5358850955963135,
+      "mean_bar_E_v": 0.0071453494019806385,
+      "mean_bar_E_vdot": 0.11212725192308426,
+      "n_trajectories": 512,
+      "ode_steps": 50,
+      "dimension": 2352,
+      "selection": "mean absolute RGB change over source foreground pixels"
+    },
+    "average_over_arms": {
+      "mean_foreground_pixel_change": 0.07283126562833786,
+      "mean_path_length": 0.06054289638996124,
+      "mean_endpoint_displacement": 0.044280060566961765,
+      "mean_straightness_ratio": 1.5296891331672668,
+      "mean_bar_E_v": 0.004476698348298669,
+      "mean_bar_E_vdot": 0.06701511144638062,
+      "dimension": 2352,
+      "n_trajectories_per_arm": 512
+    }
+  }
+}

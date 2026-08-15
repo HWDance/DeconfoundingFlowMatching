@@ -27,10 +27,15 @@
     15000,
     20000
   ],
-  "eval_n": 512,
-  "checkpoint_eval_n": 128,
+  "eval_n": 5000,
+  "checkpoint_eval_n": 512,
   "sw2_projections": 256,
   "sample_chunk": 64,
+  "skip_fid": false,
+  "fid_batch_size": 64,
+  "trajectory_n": 512,
+  "trajectory_keep": 8,
+  "trajectory_chunk": 64,
   "smoke": false,
   "observational_n": 20000,
   "digits": [

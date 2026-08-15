@@ -3,16 +3,20 @@ from pathlib import Path
 import torch
 
 from deconfoundingfm.datasets.mnist.mnist_colour import (
+    generate_two_color_observational_population,
     load_mnist_idx,
     recolor_foreground_background,
     recolor_foreground_background_batch,
-    generate_two_color_observational_population,
 )
 from deconfoundingfm.experimental import (
     CMNISTConfig,
     ColorMNISTDGP,
     ExactColorMNISTSourceGenerator,
+    load_cmnist_correction_checkpoint,
+    recover_color_values,
+    save_cmnist_correction_checkpoint,
 )
+from deconfoundingfm.nn.velocity import UNet
 
 
 def test_packaged_original_t10k_idx_files_are_used():
@@ -34,9 +38,9 @@ def test_vectorized_recolor_is_exactly_scalar_recolor():
         tau=0.08,
         k=10.0,
     )
-    batch = recolor_foreground_background_batch(
-        s.unsqueeze(0), x, fg_alpha=0.0, tau=0.08, k=10.0
-    )[0]
+    batch = recolor_foreground_background_batch(s.unsqueeze(0), x, fg_alpha=0.0, tau=0.08, k=10.0)[
+        0
+    ]
     assert torch.equal(scalar, batch)
 
 
@@ -79,10 +83,59 @@ def test_cmnist_runner_estimates_propensity_not_oracle():
     assert "OracleSigmoidPropensity" not in text
 
 
-def test_cmnist_gaussian_baseline_uses_generator_free_nuisance():
+def test_cmnist_runner_saves_portable_checkpoint_series_without_gaussian():
     runner = Path(__file__).resolve().parents[1] / "examples" / "cmnist" / "run.py"
     text = runner.read_text()
-    assert "gaussian_nuisance = ConditionalFlowFM(" in text
-    assert "nuisance_model=gaussian_nuisance" in text
-    assert 'gaussian_nuisance_cfg.base_kind = "gaussian"' in text
-    assert 'hasattr(gaussian_nuisance, "source_generator")' in text
+    assert "save_model_checkpoints" in text
+    assert '"path_kind": "relative_to_result_directory"' in text
+    assert "default=5_000" in text
+    assert "default=512" in text
+    assert "gaussian" not in text.lower()
+
+
+def test_recover_color_values_returns_one_ratio_per_image():
+    images = torch.zeros(2, 3, 4, 4)
+    images[0, 0, :2, :2] = 0.25
+    images[0, 2, :2, :2] = 0.75
+    images[1, 0, :, :] = 0.8
+    images[1, 2, :, :] = 0.2
+    values = recover_color_values(images)
+    assert values.shape == (2,)
+    assert torch.allclose(values, torch.tensor([0.25, 0.8]))
+
+
+def test_portable_correction_checkpoint_reloads_and_recreates_data(tmp_path):
+    dgp_cfg = CMNISTConfig(n_bw_shapes=4, color_draws_per_shape=2)
+    velocity = UNet(in_channels=3, out_channels=3, num_classes=2, c=2)
+    path = tmp_path / "step_000001.pt"
+    save_cmnist_correction_checkpoint(
+        path,
+        state_dict=velocity.state_dict(),
+        variant="decfm",
+        step=1,
+        ode_steps=1,
+        unet_c=2,
+        target_config={"ode_steps": 1, "use_ot": False},
+        dgp_config=dgp_cfg,
+        observational_seed=7,
+    )
+    payload = torch.load(path, map_location="cpu", weights_only=True)
+    assert payload["omitted_state"] == [
+        "nuisance_outcome",
+        "nuisance_propensity",
+        "plugin_reservoir",
+        "optimizer",
+        "cached_base_samples",
+    ]
+    sampler = load_cmnist_correction_checkpoint(path, device="cpu")
+    y0, y1 = sampler.sample(1, 2, return_base=True)
+    trajectory, velocities = sampler.trajectory(1, y0=y0)
+    assert y0.shape == y1.shape == (2, 3, 28, 28)
+    assert trajectory.shape == (2, 2, 3, 28, 28)
+    assert velocities.shape == (1, 2, 3, 28, 28)
+    assert torch.isfinite(trajectory).all()
+
+    recreated = sampler.recreate_observational_population(device="cpu")
+    expected = ColorMNISTDGP(dgp_cfg, device="cpu").make_observational_population(seed=7)
+    for key in ("X", "A", "Y", "shape_id", "color_draw"):
+        assert torch.equal(recreated[key], expected[key])
