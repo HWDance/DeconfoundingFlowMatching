@@ -88,3 +88,8 @@ The fixed observational dataset constructor was also exercised at the full defau
 A complete CPU smoke run of `examples/cmnist/run.py --smoke` successfully executed propensity estimation, generator-backed conditional nuisance fitting, independent DeconfoundingFM, OT-DeconfoundingFM, Gaussian-base FM, SW2 evaluation, checkpoint evaluation, and result-bundle serialization. The visualization notebook was then executed successfully against both the real smoke-result bundle and the committed preview bundle.
 
 The complete source test suite passes 26/26 tests. A wheel built without network access includes both original UByte files, installs into a clean target directory, and the same 26/26 tests pass against the installed wheel. Installed package data loading reports all 10,000 t10k images, including 1,135 digit-1 and 958 digit-6 images.
+
+
+## Environment file (v0.3.4)
+
+The repository root contains `environment.yml`, defining Python 3.11 and installing the local checkout in editable mode with `.[demo,dev]`. The YAML was parsed during packaging, and the normal source test suite was rerun after the packaging/install documentation changes.

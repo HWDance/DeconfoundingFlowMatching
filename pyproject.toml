@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deconfoundingfm"
-version = "0.3.3"
+version = "0.3.4"
 description = "Deconfounding observational to counterfactual distributions with flow matching"
 readme = "README.md"
 requires-python = ">=3.10"

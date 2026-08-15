@@ -42,27 +42,46 @@ conditions in the paper. This limitation is surfaced in `model.diagnostics()` ra
 
 ## Installation
 
+### Conda / Mamba (recommended for a fresh clone)
+
+The repository ships an [`environment.yml`](environment.yml) that creates a reproducible Python environment and installs the package in editable mode with both demo and development dependencies:
+
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -e .
+conda env create -f environment.yml
+conda activate deconfoundingfm
 ```
 
-For the executable demo notebook:
+`mamba env create -f environment.yml` can be used equivalently. Run the command from the repository root because the environment installs the local checkout with `-e .[demo,dev]`.
+
+A quick installation/GPU check is:
 
 ```bash
-pip install -e ".[demo]"
-jupyter notebook examples/demo.ipynb
-```
-
-For development:
-
-```bash
-pip install -e ".[dev]"
+python -c "import deconfoundingfm, torch; print(deconfoundingfm.__version__); print('CUDA:', torch.cuda.is_available())"
 pytest
 ```
 
-The core package depends only on PyTorch, NumPy, and scikit-learn. The demo extra adds Matplotlib and Jupyter.
+The Conda environment is portable and does not bundle a host GPU driver. On a GPU machine, `torch.cuda.is_available()` should be `True` before launching the CMNIST run; if it is not, install the PyTorch build appropriate for that machine and then rerun `pip install -e ".[demo,dev]"`.
+
+To refresh an existing environment after pulling changes:
+
+```bash
+conda env update -f environment.yml --prune
+```
+
+### `venv` / pip
+
+A plain Python virtual environment remains supported:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python -m pip install --upgrade pip
+pip install -e ".[demo,dev]"
+```
+
+For package-only use without notebooks or development tools, use `pip install -e .` instead.
+
+The core package depends on PyTorch, NumPy, and scikit-learn. The `demo` extra adds Matplotlib and Jupyter; `dev` adds the test/build tooling.
 
 ## Quick start: vector outcome
 
@@ -91,7 +110,7 @@ With `architecture="auto"` (the default), `(N,d_y)` outcomes select an MLP autom
 
 For vector outcomes, the package defaults intentionally use a small **one-hidden-layer MLP of width 64**, a target learning rate of `1e-4`, `10_000` target optimizer updates, batch size `256`, and a 64-draw cached plug-in reservoir (`plugin_batch=4`). The executed public demo notebook intentionally overrides these with a target learning rate of `3e-4` and `20_000` target updates.
 
-A single runnable walkthrough is in [`examples/demo.ipynb`](examples/demo.ipynb). The demo keeps the 1x64 MLP, 10,000-update budget, batch size 256, and 64-draw plug-in reservoir, while using a target learning rate of `3e-4`. It compares DeconfoundingFM, OT-DeconfoundingFM, and a matched Gaussian-base FM baseline on a structured three-mode problem where the Gaussian base overlaps the central target mode. The notebook includes the source/target geometry, final generated distributions, **SW2 convergence at 250/500/1k/2k/5k/10k updates**, and learned trajectories.
+A single runnable walkthrough is in [`examples/demo.ipynb`](examples/demo.ipynb). The demo keeps the 1x64 MLP, batch size 256, and 64-draw plug-in reservoir, while using a target learning rate of `3e-4` and a 20,000-update budget. It compares DeconfoundingFM, OT-DeconfoundingFM, and a matched Gaussian-base FM baseline on a structured three-mode problem where the Gaussian base overlaps the central target mode. The notebook includes the source/target geometry, final generated distributions, **SW2 convergence at 250/500/1k/2k/5k/10k/15k/20k updates**, and learned trajectories.
 
 
 ### Exact optimizer-step budgets
@@ -102,7 +121,7 @@ The default vector configuration uses an exact 10,000-update target budget. To c
 DeconfoundingFMConfig(iterations=10_000)
 ```
 
-This runs exactly 10,000 target-flow optimizer updates regardless of dataset or minibatch size. If `iterations=None`, training falls back to the epoch budget in `epochs`. The demo uses the default 10,000 target iterations for DeconfoundingFM, OT-DeconfoundingFM, and the Gaussian-base comparison.
+This runs exactly 10,000 target-flow optimizer updates regardless of dataset or minibatch size. If `iterations=None`, training falls back to the epoch budget in `epochs`. The package default is 10,000 target iterations; the executed demo overrides this to 20,000 for DeconfoundingFM, OT-DeconfoundingFM, and the Gaussian-base comparison.
 
 ## Image outcomes
 

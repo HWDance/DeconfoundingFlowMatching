@@ -2,6 +2,13 @@
 
 This example uses the **same ColorMNIST generator as the paper experiments**. The exact original MNIST `t10k` UByte files are bundled in the Python package, so no torchvision download or sklearn fallback is used.
 
+Create/activate the repository environment from the repository root first:
+
+```bash
+conda env create -f environment.yml
+conda activate deconfoundingfm
+```
+
 The heavy experiment and the notebook are deliberately separated:
 
 ```bash

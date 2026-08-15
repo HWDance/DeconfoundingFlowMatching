@@ -1,0 +1,11 @@
+# Reproducible development/demo environment.
+# Run `conda env create -f environment.yml` from the repository root so the
+# editable local package path below resolves correctly.
+name: deconfoundingfm
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip>=24
+  - pip:
+      - -e .[demo,dev]

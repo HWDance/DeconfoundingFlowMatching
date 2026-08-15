@@ -1,13 +1,22 @@
 # Run instructions (Codex / cluster)
 
-From the repository root:
+From a fresh clone, create the checked-in environment first:
 
 ```bash
-python -m pip install -e ".[demo]"
+conda env create -f environment.yml
+conda activate deconfoundingfm
+python -c "import torch; print('CUDA:', torch.cuda.is_available(), 'device_count:', torch.cuda.device_count())"
+```
+
+Then, from the repository root, run the smoke test followed by the full backend and refresh the viewing notebook:
+
+```bash
 python examples/cmnist/run.py --smoke --device cuda --output examples/cmnist/results/smoke
 python examples/cmnist/run.py --device cuda --output examples/cmnist/results/default
 jupyter nbconvert --to notebook --execute --inplace examples/cmnist/demo.ipynb
 ```
+
+If the environment already exists after a pull, refresh it with `conda env update -f environment.yml --prune`.
 
 For the full run, do not change the defaults unless explicitly requested. The intended defaults are:
 
