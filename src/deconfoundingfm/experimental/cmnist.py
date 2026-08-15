@@ -5,7 +5,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 import torch
+import torch.nn.functional as F
 
 from ..datasets.mnist.mnist_colour import (
     BG_BLACK,
@@ -195,7 +197,7 @@ def load_result_bundle(path):
     convergence = json.loads((path / "convergence.json").read_text())
     samples = torch.load(path / "samples.pt", map_location="cpu")
     manifest = json.loads((path / "run_manifest.json").read_text())
-    return {
+    bundle = {
         "metrics": metrics,
         "config": config,
         "convergence": convergence,
@@ -203,3 +205,120 @@ def load_result_bundle(path):
         "manifest": manifest,
         "path": path,
     }
+    if (path / "trajectory_summary.json").exists():
+        bundle["trajectory_summary"] = json.loads((path / "trajectory_summary.json").read_text())
+    if (path / "color_diagnostics.json").exists():
+        bundle["color_diagnostics"] = json.loads((path / "color_diagnostics.json").read_text())
+    if (path / "trajectories.pt").exists():
+        bundle["trajectories"] = torch.load(path / "trajectories.pt", map_location="cpu")
+    if (path / "model_manifest.json").exists():
+        bundle["model_manifest"] = json.loads((path / "model_manifest.json").read_text())
+    return bundle
+
+
+
+@torch.no_grad()
+def recover_color_values(images: torch.Tensor, *, foreground_threshold: float = 0.05) -> torch.Tensor:
+    """Recover scalar color values ``x`` from RGB CMNIST images.
+
+    The original CMNIST map uses foreground colors ``(x, alpha, 1-x)`` on a black
+    background.  We therefore estimate ``x`` on foreground pixels by
+    ``R / (R + B)`` and aggregate across all foreground pixels.
+    """
+    x = images.detach().cpu().float().clamp(0.0, 1.0)
+    if x.ndim != 4 or x.shape[1] != 3:
+        raise ValueError('Expected images with shape (N,3,H,W).')
+    r = x[:, 0]
+    b = x[:, 2]
+    denom = (r + b).clamp_min(1e-8)
+    fg = (x.sum(dim=1) > foreground_threshold)
+    vals = (r / denom)[fg]
+    return vals.clamp(0.0, 1.0)
+
+
+def empirical_w1_1d(x: torch.Tensor, y: torch.Tensor) -> float:
+    x = x.detach().cpu().flatten().sort().values
+    y = y.detach().cpu().flatten().sort().values
+    n = min(len(x), len(y))
+    if n == 0:
+        return float('nan')
+    return float((x[:n] - y[:n]).abs().mean())
+
+
+def ks_uniform_statistic(x: torch.Tensor) -> float:
+    x = x.detach().cpu().flatten().sort().values
+    n = len(x)
+    if n == 0:
+        return float('nan')
+    u = torch.arange(1, n + 1, dtype=x.dtype) / n
+    u0 = torch.arange(0, n, dtype=x.dtype) / n
+    d_plus = (u - x).abs().max()
+    d_minus = (x - u0).abs().max()
+    return float(torch.maximum(d_plus, d_minus))
+
+
+def color_distribution_diagnostics(samples_by_arm: dict[int, torch.Tensor]) -> dict:
+    vals0 = recover_color_values(samples_by_arm[0])
+    vals1 = recover_color_values(samples_by_arm[1])
+    uniform_ref = torch.linspace(0.0, 1.0, steps=min(len(vals0), len(vals1), 2048))
+    out = {
+        'px0_vs_px1_w1': empirical_w1_1d(vals0, vals1),
+        'px0_vs_uniform_w1': empirical_w1_1d(vals0, uniform_ref),
+        'px1_vs_uniform_w1': empirical_w1_1d(vals1, uniform_ref),
+        'px0_vs_uniform_ks': ks_uniform_statistic(vals0),
+        'px1_vs_uniform_ks': ks_uniform_statistic(vals1),
+        'n_recovered_px0': int(len(vals0)),
+        'n_recovered_px1': int(len(vals1)),
+    }
+    return out
+
+
+def make_inception_feature_extractor(*, device='cpu'):
+    from torchvision.models import Inception_V3_Weights, inception_v3
+    model = inception_v3(weights=Inception_V3_Weights.DEFAULT, transform_input=False)
+    model.fc = torch.nn.Identity()
+    model.eval().to(device)
+    return model
+
+
+@torch.no_grad()
+def inception_features(images: torch.Tensor, model, *, batch_size: int = 64, device='cpu') -> torch.Tensor:
+    images = images.detach().float()
+    feats = []
+    device = torch.device(device)
+    for start in range(0, len(images), batch_size):
+        x = images[start:start + batch_size].to(device)
+        x = F.interpolate(x, size=(299, 299), mode='bilinear', align_corners=False)
+        x = x.clamp(0.0, 1.0)
+        f = model(x)
+        if isinstance(f, tuple):
+            f = f[0]
+        feats.append(f.detach().cpu())
+    return torch.cat(feats, dim=0)
+
+
+def _cov(feats: torch.Tensor) -> torch.Tensor:
+    x = feats.float()
+    x = x - x.mean(dim=0, keepdim=True)
+    denom = max(len(x) - 1, 1)
+    return (x.T @ x) / denom
+
+
+def _trace_sqrt_product(c1: torch.Tensor, c2: torch.Tensor) -> torch.Tensor:
+    # sqrtm(c1^{1/2} c2 c1^{1/2}) using eigen decompositions on CPU.
+    evals1, evecs1 = torch.linalg.eigh(c1)
+    evals1 = evals1.clamp_min(0)
+    c1_half = (evecs1 * evals1.sqrt().unsqueeze(0)) @ evecs1.T
+    prod = c1_half @ c2 @ c1_half
+    evals_prod = torch.linalg.eigvalsh(prod).clamp_min(0)
+    return evals_prod.sqrt().sum()
+
+
+def fid_from_features(real_feats: torch.Tensor, fake_feats: torch.Tensor) -> float:
+    mu1 = real_feats.float().mean(dim=0)
+    mu2 = fake_feats.float().mean(dim=0)
+    c1 = _cov(real_feats)
+    c2 = _cov(fake_feats)
+    mean_term = (mu1 - mu2).square().sum()
+    trace_term = torch.trace(c1) + torch.trace(c2) - 2.0 * _trace_sqrt_product(c1, c2)
+    return float((mean_term + trace_term).cpu())

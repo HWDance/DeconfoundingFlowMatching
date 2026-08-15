@@ -1,0 +1,10 @@
+{
+  "decfm": {
+    "path": "/mnt/data/finalrepo/DeconfoundingFlowMatching/examples/cmnist/results/smoke_test/models/decfm_correction.pt",
+    "variant": "decfm"
+  },
+  "ot": {
+    "path": "/mnt/data/finalrepo/DeconfoundingFlowMatching/examples/cmnist/results/smoke_test/models/ot_deconfoundingfm_correction.pt",
+    "variant": "ot"
+  }
+}

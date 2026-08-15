@@ -1,0 +1,62 @@
+{
+  "decfm": {
+    "arm0": {
+      "mean_path_length": 0.31768709421157837,
+      "mean_endpoint_displacement": 0.31768709421157837,
+      "mean_straightness_ratio": 1.0,
+      "mean_bar_E_v": 0.10092508047819138,
+      "mean_bar_E_vdot": 0.0,
+      "n_trajectories": 4,
+      "ode_steps": 1,
+      "dimension": 2352
+    },
+    "arm1": {
+      "mean_path_length": 0.36357760429382324,
+      "mean_endpoint_displacement": 0.36357760429382324,
+      "mean_straightness_ratio": 1.0,
+      "mean_bar_E_v": 0.13218869268894196,
+      "mean_bar_E_vdot": 0.0,
+      "n_trajectories": 4,
+      "ode_steps": 1,
+      "dimension": 2352
+    },
+    "average_over_arms": {
+      "mean_path_length": 0.3406323492527008,
+      "mean_endpoint_displacement": 0.3406323492527008,
+      "mean_straightness_ratio": 1.0,
+      "mean_bar_E_v": 0.11655688658356667,
+      "mean_bar_E_vdot": 0.0,
+      "dimension": 2352
+    }
+  },
+  "ot": {
+    "arm0": {
+      "mean_path_length": 0.31763166189193726,
+      "mean_endpoint_displacement": 0.31763166189193726,
+      "mean_straightness_ratio": 1.0,
+      "mean_bar_E_v": 0.10088986158370972,
+      "mean_bar_E_vdot": 0.0,
+      "n_trajectories": 4,
+      "ode_steps": 1,
+      "dimension": 2352
+    },
+    "arm1": {
+      "mean_path_length": 0.36358776688575745,
+      "mean_endpoint_displacement": 0.36358776688575745,
+      "mean_straightness_ratio": 1.0,
+      "mean_bar_E_v": 0.13219605386257172,
+      "mean_bar_E_vdot": 0.0,
+      "n_trajectories": 4,
+      "ode_steps": 1,
+      "dimension": 2352
+    },
+    "average_over_arms": {
+      "mean_path_length": 0.34060971438884735,
+      "mean_endpoint_displacement": 0.34060971438884735,
+      "mean_straightness_ratio": 1.0,
+      "mean_bar_E_v": 0.11654295772314072,
+      "mean_bar_E_vdot": 0.0,
+      "dimension": 2352
+    }
+  }
+}

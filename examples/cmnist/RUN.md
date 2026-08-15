@@ -32,3 +32,6 @@ For the full run, do not change the defaults unless explicitly requested. The in
 - checkpoints 250, 500, 1k, 2k, 5k, 10k, 15k, 20k.
 
 After the backend finishes, verify that `config.json`, `metrics.json`, `convergence.json`, `run_manifest.json`, and `samples.pt` all exist in the requested result directory. Then execute the notebook so its committed outputs match the saved bundle.
+
+
+The backend run now also saves: correction-only model checkpoints, optional FID metrics, CMNIST color-distribution diagnostics, and trajectory summaries including per-dimension $\bar E_v$ and $\bar E_{\dot v}$.

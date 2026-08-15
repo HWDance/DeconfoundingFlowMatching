@@ -34,3 +34,6 @@ The exact source generator remains separate from that fixed causal dataset: each
 - Gaussian-base `P_hat_G(Y|X,A)`: a separate, architecture-matched nuisance trained on the same fixed observations from standard Gaussian noise. It has no access to the source generator.
 - DeconfoundingFM / OT-DeconfoundingFM use the generator-base nuisance and fresh source-generator target bases. The Gaussian comparison uses only the Gaussian nuisance and a Gaussian target base.
 - Exact/oracle access is used **only by the generator-based variants** and for held-out evaluation references.
+
+
+The backend run now also saves: correction-only model checkpoints, optional FID metrics, CMNIST color-distribution diagnostics, and trajectory summaries including per-dimension $\bar E_v$ and $\bar E_{\dot v}$.

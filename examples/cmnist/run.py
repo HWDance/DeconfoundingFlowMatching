@@ -23,6 +23,13 @@ from deconfoundingfm.experimental import (
     GeneratorDeconfoundingFlow,
     sliced_wasserstein_images,
 )
+from deconfoundingfm.experimental.cmnist import (
+    color_distribution_diagnostics,
+    fid_from_features,
+    inception_features,
+    make_inception_feature_extractor,
+)
+from deconfoundingfm.integrators import integrate_midpoint_trajectory
 from deconfoundingfm.nuisance.outcome import ConditionalFlowFMConfig
 from deconfoundingfm.nuisance.propensity import RandomForestConfig, RandomForestPropensityEstimator
 from deconfoundingfm.core.target import DeconfoundingFlowConfig
@@ -72,6 +79,10 @@ def build_parser():
     p.add_argument("--checkpoint-eval-n", type=int, default=128)
     p.add_argument("--sw2-projections", type=int, default=256)
     p.add_argument("--sample-chunk", type=int, default=64)
+    p.add_argument("--skip-fid", action="store_true")
+    p.add_argument("--fid-batch-size", type=int, default=64)
+    p.add_argument("--trajectory-n", type=int, default=64)
+    p.add_argument("--trajectory-keep", type=int, default=8)
 
     p.add_argument("--smoke", action="store_true")
     return p
@@ -105,6 +116,73 @@ def mean_arm_sw2(samples_by_arm, truth_by_arm, *, projections, seed):
     return float(sum(vals) / len(vals)), vals
 
 
+@torch.no_grad()
+def trajectory_diagnostics(model, source_generator, *, arms=(0, 1), n=64, steps=50, keep=8):
+    device = next(model.velocity.parameters()).device
+    summary = {}
+    saved = {}
+    dim = None
+    for arm in arms:
+        y0 = source_generator.sample(int(arm), int(n), device=device)
+        ctx = model._make_context(int(arm), y0.shape[0], y0.device)
+        traj, vmids = integrate_midpoint_trajectory(model.velocity, y0, context=ctx, steps=steps)
+        dim = int(y0[0].numel())
+        dt = 1.0 / int(steps)
+        disp = (traj[-1] - traj[0]).reshape(n, -1).norm(dim=1) / (dim ** 0.5)
+        speed = vmids.reshape(steps, n, -1).norm(dim=2)
+        path_length = speed.sum(dim=0) * dt / (dim ** 0.5)
+        straightness = path_length / disp.clamp_min(1e-8)
+        path_energy_bar = vmids.reshape(steps, n, -1).square().sum(dim=2).sum(dim=0) * dt / dim
+        if steps > 1:
+            dv = (vmids[1:] - vmids[:-1]) / dt
+            vdot_energy_bar = dv.reshape(steps - 1, n, -1).square().sum(dim=2).sum(dim=0) * dt / dim
+        else:
+            vdot_energy_bar = torch.zeros(n, device=y0.device, dtype=y0.dtype)
+        key = f'arm{arm}'
+        summary[key] = {
+            'mean_path_length': float(path_length.mean().detach().cpu()),
+            'mean_endpoint_displacement': float(disp.mean().detach().cpu()),
+            'mean_straightness_ratio': float(straightness.mean().detach().cpu()),
+            'mean_bar_E_v': float(path_energy_bar.mean().detach().cpu()),
+            'mean_bar_E_vdot': float(vdot_energy_bar.mean().detach().cpu()),
+            'n_trajectories': int(n),
+            'ode_steps': int(steps),
+            'dimension': int(dim),
+        }
+        topk = min(int(keep), int(n))
+        idx = torch.topk(disp.detach().cpu(), k=topk).indices
+        saved[key] = {
+            'y0': traj[0, idx].detach().cpu(),
+            'trajectory': traj[:, idx].detach().cpu(),
+            'displacement': disp[idx].detach().cpu(),
+            'path_length': path_length[idx].detach().cpu(),
+            'bar_E_v': path_energy_bar[idx].detach().cpu(),
+            'bar_E_vdot': vdot_energy_bar[idx].detach().cpu(),
+        }
+    summary['average_over_arms'] = {
+        'mean_path_length': float(sum(summary[f'arm{a}']['mean_path_length'] for a in arms) / len(tuple(arms))),
+        'mean_endpoint_displacement': float(sum(summary[f'arm{a}']['mean_endpoint_displacement'] for a in arms) / len(tuple(arms))),
+        'mean_straightness_ratio': float(sum(summary[f'arm{a}']['mean_straightness_ratio'] for a in arms) / len(tuple(arms))),
+        'mean_bar_E_v': float(sum(summary[f'arm{a}']['mean_bar_E_v'] for a in arms) / len(tuple(arms))),
+        'mean_bar_E_vdot': float(sum(summary[f'arm{a}']['mean_bar_E_vdot'] for a in arms) / len(tuple(arms))),
+        'dimension': int(dim if dim is not None else 0),
+    }
+    return summary, saved
+
+
+def save_correction_checkpoint(model, path: Path, *, variant: str, args):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        'variant': variant,
+        'state_dict': {k: v.detach().cpu() for k, v in model.velocity.state_dict().items()},
+        'ode_steps': int(model.cfg.ode_steps),
+        'unet_c': int(args.unet_c),
+        'base_kind': str(model.cfg.base_kind),
+        'note': 'Correction-only checkpoint; no plugin reservoir, nuisance model, or saved base samples.',
+    }
+    torch.save(payload, path)
+
+
 def main():
     args = build_parser().parse_args()
     if args.smoke:
@@ -123,6 +201,9 @@ def main():
         args.sw2_projections = 4
         args.sample_chunk = 4
         args.checkpoints = [1]
+        args.skip_fid = True
+        args.trajectory_n = 4
+        args.trajectory_keep = 2
 
     out = Path(args.output)
     if not out.is_absolute():
@@ -139,6 +220,11 @@ def main():
         raise RuntimeError("CUDA requested but not available.")
     if device.type == "cuda":
         torch.backends.cudnn.benchmark = True
+
+    inception = None
+    if not args.skip_fid:
+        print("Loading ImageNet-pretrained Inception-v3 for FID ...")
+        inception = make_inception_feature_extractor(device=device)
 
     # ------------------------------------------------------------------
     # 1. Exact original CMNIST DGP + fixed 20k labeled population.
@@ -261,6 +347,13 @@ def main():
     ot = make_target(use_ot=True)
     ot.fit(X, A, Y, verbose=True, checkpoint_steps=args.checkpoints)
 
+    # Retain correction-only checkpoints for test-time use, drained of plugin stores.
+    decfm.drain_plugin_store()
+    ot.drain_plugin_store()
+    models_dir = out / "models"
+    save_correction_checkpoint(decfm, models_dir / "decfm_correction.pt", variant="decfm", args=args)
+    save_correction_checkpoint(ot, models_dir / "ot_deconfoundingfm_correction.pt", variant="ot", args=args)
+
     # ------------------------------------------------------------------
     # 5. Fresh reference evaluation from the exact DGP.
     # ------------------------------------------------------------------
@@ -300,6 +393,27 @@ def main():
         "ot_sw2_by_arm": ot_arms,
         "metric_note": "Sliced Wasserstein-2 on flattened RGB images; final value averages arms 0 and 1.",
     }
+    if inception is not None:
+        fid_source = []
+        fid_decfm = []
+        fid_ot = []
+        for arm in (0, 1):
+            real_feats = inception_features(truth[arm], inception, batch_size=args.fid_batch_size, device=device)
+            source_feats = inception_features(source[arm], inception, batch_size=args.fid_batch_size, device=device)
+            decfm_feats = inception_features(model_samples["decfm"][arm], inception, batch_size=args.fid_batch_size, device=device)
+            ot_feats = inception_features(model_samples["ot"][arm], inception, batch_size=args.fid_batch_size, device=device)
+            fid_source.append(fid_from_features(real_feats, source_feats))
+            fid_decfm.append(fid_from_features(real_feats, decfm_feats))
+            fid_ot.append(fid_from_features(real_feats, ot_feats))
+        metrics.update({
+            'source_fid': float(sum(fid_source) / len(fid_source)),
+            'decfm_fid': float(sum(fid_decfm) / len(fid_decfm)),
+            'ot_fid': float(sum(fid_ot) / len(fid_ot)),
+            'source_fid_by_arm': fid_source,
+            'decfm_fid_by_arm': fid_decfm,
+            'ot_fid_by_arm': fid_ot,
+            'fid_note': 'FID computed from ImageNet-pretrained Inception-v3 features; final value averages arms 0 and 1.',
+        })
     print(json.dumps(metrics, indent=2))
 
     # Checkpoint convergence uses a smaller fixed fresh reference for tractability.
@@ -342,6 +456,20 @@ def main():
         "ot": vals_o,
     }
 
+    # CMNIST-specific color diagnostics and path-shape diagnostics.
+    color_diag = {
+        'source': color_distribution_diagnostics(source),
+        'decfm': color_distribution_diagnostics(model_samples['decfm']),
+        'ot': color_distribution_diagnostics(model_samples['ot']),
+    }
+    traj_summary_decfm, traj_saved_decfm = trajectory_diagnostics(
+        decfm, source_generator, n=args.trajectory_n, steps=args.ode_steps, keep=args.trajectory_keep
+    )
+    traj_summary_ot, traj_saved_ot = trajectory_diagnostics(
+        ot, source_generator, n=args.trajectory_n, steps=args.ode_steps, keep=args.trajectory_keep
+    )
+    trajectory_summary = {'decfm': traj_summary_decfm, 'ot': traj_summary_ot}
+
     # Compact result bundle used by demo.ipynb.
     saved_samples = {
         "observed_a0": source[0][:64].clone(),
@@ -370,16 +498,27 @@ def main():
     save_json(config_payload, out / "config.json")
     save_json(metrics, out / "metrics.json")
     save_json(convergence, out / "convergence.json")
+    save_json(color_diag, out / "color_diagnostics.json")
+    save_json(trajectory_summary, out / "trajectory_summary.json")
+    save_json(
+        {
+            'decfm': {'path': str(models_dir / 'decfm_correction.pt'), 'variant': 'decfm'},
+            'ot': {'path': str(models_dir / 'ot_deconfoundingfm_correction.pt'), 'variant': 'ot'},
+        },
+        out / 'model_manifest.json',
+    )
     save_json(
         {
             "device": str(device),
             "seed": args.seed,
             "torch_version": torch.__version__,
             "cuda_available": bool(torch.cuda.is_available()),
+            "skip_fid": bool(args.skip_fid),
         },
         out / "run_manifest.json",
     )
     torch.save(saved_samples, out / "samples.pt")
+    torch.save({'decfm': traj_saved_decfm, 'ot': traj_saved_ot}, out / 'trajectories.pt')
     print(f"Saved CMNIST result bundle to {out}")
 
 

@@ -1,0 +1,7 @@
+{
+  "device": "cpu",
+  "seed": 0,
+  "torch_version": "2.10.0+cpu",
+  "cuda_available": false,
+  "skip_fid": true
+}

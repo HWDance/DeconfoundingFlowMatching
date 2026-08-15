@@ -300,3 +300,6 @@ jupyter notebook examples/cmnist/demo.ipynb
 ```
 
 `run.py` performs the heavy GPU training and writes a self-contained results bundle; `demo.ipynb` only loads that bundle and visualizes it. See `examples/cmnist/RUN.md` for an unattended Codex/cluster recipe. The committed default bundle is an exact-DGP preview only, with no fabricated trained-model metrics.
+
+
+For the CMNIST backend demo, the runner writes SW2, optional FID, color-distribution diagnostics, and trajectory diagnostics. The reported path energies are normalized per outcome dimension: `bar_E_v = (1/d) int ||v_t(Y_t)||^2 dt` and `bar_E_vdot = (1/d) int ||d/dt v_t(Y_t)||^2 dt`.
