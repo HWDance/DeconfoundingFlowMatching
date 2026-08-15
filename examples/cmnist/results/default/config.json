@@ -1,0 +1,14 @@
+{
+  "preview_only": true,
+  "digits": [
+    1,
+    6
+  ],
+  "bw_shapes": 10000,
+  "colors_per_shape": 2,
+  "observational_n": 20000,
+  "confounding_w": 5.0,
+  "tau": 0.08,
+  "k": 10.0,
+  "fg_alpha": 0.0
+}

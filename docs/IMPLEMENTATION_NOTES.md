@@ -82,9 +82,14 @@ nuisance models. It therefore reports `automatic_cross_fitting=False` in diagnos
 training objective is the intended DeconfoundingFM objective, but users requiring the formal
 sample-splitting guarantees should use a cross-fitted workflow until first-class cross-fitting is added.
 
+## Generator-backed CMNIST demo
 
-## Population-sampler simulation path
+The CMNIST generator-correction example intentionally separates three objects:
 
-`deconfoundingfm.experimental.PopulationFlowTrainer` is intentionally separate from the finite-data `DeconfoundingFM.fit(X,A,Y)` API. It is for synthetic limiting-population studies only. `fit_outcome` draws a fresh observational minibatch at every nuisance update. `fit_target` redraws X/A/Y and observational source outcomes at every target update, while caching conditional-flow draws on a renewable X-context reservoir because image conditional sampling requires repeated ODE solves. Each fresh X uses the nearest cached context. The reservoir size and refresh frequency are explicit approximation controls.
+1. a fixed 20k labeled observational dataset used to estimate `pi_hat(A|X)` and `P_hat(Y|X,A)`;
+2. an exact stand-in for a pretrained biased generator of `P(Y|A=a)`, used only to provide fresh base samples to the nuisance and target flow; and
+3. fresh interventional DGP samples used only for evaluation.
 
-`deconfoundingfm.datasets.ColorMNISTPopulation` reproduces the research ColorMNIST DGP with vectorized GPU sampling and supports either torchvision's MNIST test split or the original raw IDX files.
+The source generator does not expose `X` and cannot replace either nuisance. It uses the original UByte digit pools and samples `X|A=a` under the original sigmoid assignment mechanism before applying the original foreground recoloring map.
+
+The 20k labeled dataset is constructed as 10,000 grayscale shape draws from the treatment-specific `(1,6)` digit pools, with two independent `X|A` color draws for each fixed shape. This pairing preserves the original binary DGP while giving exactly 20,000 labeled RGB observations. A literal two-color duplication of all raw t10k entries would include the other eight digit classes and would therefore no longer be the original binary CMNIST experiment.

@@ -48,18 +48,11 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e .
 ```
 
-For the executable vector demo notebook:
+For the executable demo notebook:
 
 ```bash
 pip install -e ".[demo]"
 jupyter notebook examples/demo.ipynb
-```
-
-For the GPU-oriented population ColorMNIST demo:
-
-```bash
-pip install -e ".[cmnist]"
-jupyter notebook examples/cmnist_population_demo.ipynb
 ```
 
 For development:
@@ -69,7 +62,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-The core package depends only on PyTorch, NumPy, and scikit-learn. The `demo` extra adds Matplotlib/Jupyter; the `cmnist` extra additionally adds torchvision for the MNIST test split.
+The core package depends only on PyTorch, NumPy, and scikit-learn. The demo extra adds Matplotlib and Jupyter.
 
 ## Quick start: vector outcome
 
@@ -98,9 +91,7 @@ With `architecture="auto"` (the default), `(N,d_y)` outcomes select an MLP autom
 
 For vector outcomes, the package defaults intentionally use a small **one-hidden-layer MLP of width 64**, a target learning rate of `1e-4`, `10_000` target optimizer updates, batch size `256`, and a 64-draw cached plug-in reservoir (`plugin_batch=4`). The executed public demo notebook intentionally overrides these with a target learning rate of `3e-4` and `20_000` target updates.
 
-The main vector walkthrough is [`examples/demo.ipynb`](examples/demo.ipynb). It uses a 1x64 MLP, target learning rate `3e-4`, and **20,000 target updates**, comparing DeconfoundingFM, OT-DeconfoundingFM, and a matched Gaussian-base FM baseline on a structured three-mode problem. The notebook includes source/target geometry, final generated distributions, SW2 convergence through 20k updates, and learned trajectories.
-
-A second, GPU-oriented simulation walkthrough is [`examples/cmnist_population_demo.ipynb`](examples/cmnist_population_demo.ipynb). It uses the same ColorMNIST DGP as the paper experiments (digits 1/6, continuous red-blue confounder, MNIST test split), but trains against **fresh population minibatches** rather than a fixed observational sample. The conditional outcome nuisance sees fresh data at every update; target X/A/Y and observational source samples are also redrawn every update. Expensive nuisance-flow ODE samples are cached on a renewable X-context reservoir, with each fresh X using its nearest cached context via `deconfoundingfm.experimental.PopulationFlowTrainer`.
+A single runnable walkthrough is in [`examples/demo.ipynb`](examples/demo.ipynb). The demo keeps the 1x64 MLP, 10,000-update budget, batch size 256, and 64-draw plug-in reservoir, while using a target learning rate of `3e-4`. It compares DeconfoundingFM, OT-DeconfoundingFM, and a matched Gaussian-base FM baseline on a structured three-mode problem where the Gaussian base overlaps the central target mode. The notebook includes the source/target geometry, final generated distributions, **SW2 convergence at 250/500/1k/2k/5k/10k updates**, and learned trajectories.
 
 
 ### Exact optimizer-step budgets
@@ -111,7 +102,7 @@ The default vector configuration uses an exact 10,000-update target budget. To c
 DeconfoundingFMConfig(iterations=10_000)
 ```
 
-This runs exactly 10,000 target-flow optimizer updates regardless of dataset or minibatch size. If `iterations=None`, training falls back to the epoch budget in `epochs`. The vector demo deliberately overrides the package default and runs 20,000 target iterations for DeconfoundingFM, OT-DeconfoundingFM, and the Gaussian-base comparison.
+This runs exactly 10,000 target-flow optimizer updates regardless of dataset or minibatch size. If `iterations=None`, training falls back to the epoch budget in `epochs`. The demo uses the default 10,000 target iterations for DeconfoundingFM, OT-DeconfoundingFM, and the Gaussian-base comparison.
 
 ## Image outcomes
 
@@ -224,10 +215,6 @@ deconfoundingfm/
 │       ├── core/
 │       │   ├── data.py
 │       │   └── target.py
-│       ├── datasets/
-│       │   └── colormnist.py
-│       ├── experimental/
-│       │   └── population.py
 │       ├── nuisance/
 │       │   ├── outcome.py
 │       │   └── propensity.py
@@ -236,8 +223,7 @@ deconfoundingfm/
 │           ├── mlp.py
 │           └── unet.py
 ├── examples/
-│   ├── demo.ipynb
-│   └── cmnist_population_demo.ipynb
+│   └── demo.ipynb
 ├── tests/
 └── .github/workflows/
 ```
@@ -273,11 +259,25 @@ replacing as the distribution of outcomes with attribute $A=a$ in the regime whe
 - propensity clipping and nuisance interfaces;
 - ODE integration and EOT marginal checks;
 - the high-level fit/sample/transform API;
-- package imports and absence of legacy `doflow` imports;
-- ColorMNIST population sampling and the fresh-minibatch population trainer.
+- package imports and absence of legacy `doflow` imports.
 
 GitHub Actions runs the suite on supported Python versions.
 
 ## License
 
 Apache License 2.0. See [`LICENSE`](LICENSE).
+
+## CMNIST backend demo
+
+The repository also includes a heavier **ColorMNIST generator-correction demo** in `examples/cmnist/`. It bundles the exact original MNIST `t10k` UByte files and the same foreground-color DGP used by the research experiments (digits `(1,6)`, `tau=0.08`, `k=10`, black background, and the original red/blue map). No torchvision download or sklearn substitute is used.
+
+The backend constructs a fixed labeled dataset with **10,000 grayscale shape draws × two independent `X|A` color draws = 20,000 observations**. Both `pi_hat(A|X)` and `P_hat(Y|X,A)` are estimated from those 20k observations. The only oracle component is the frozen biased source-generator stand-in: both the conditional nuisance and the final DeconfoundingFM target request fresh `P(Y|A=a)` base samples from it on every optimizer update.
+
+The intended workflow is:
+
+```bash
+python examples/cmnist/run.py --device cuda --output examples/cmnist/results/default
+jupyter notebook examples/cmnist/demo.ipynb
+```
+
+`run.py` performs the heavy GPU training and writes a self-contained results bundle; `demo.ipynb` only loads that bundle and visualizes it. See `examples/cmnist/RUN.md` for an unattended Codex/cluster recipe. The committed default bundle is an exact-DGP preview only, with no fabricated trained-model metrics.
