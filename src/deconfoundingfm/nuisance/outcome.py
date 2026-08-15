@@ -359,6 +359,81 @@ class ConditionalFlowFM(nn.Module):
         self.eval()
         return self
 
+    def fit_iterations(
+        self,
+        X: torch.Tensor,
+        A: torch.Tensor,
+        Y: torch.Tensor,
+        *,
+        iterations: int,
+        batch_size: Optional[int] = None,
+        lr: Optional[float] = None,
+        verbose: bool = True,
+    ):
+        """Fit for an exact number of optimizer updates."""
+        batch_size = self.cfg.batch_size if batch_size is None else int(batch_size)
+        lr = self.cfg.lr if lr is None else float(lr)
+        iterations = int(iterations)
+        if iterations < 1:
+            raise ValueError("iterations must be >= 1.")
+
+        device = next(self.velocity.parameters()).device
+        X, A, Y = X.to(device), A.to(device), Y.to(device)
+        if X.shape[0] != A.shape[0] or X.shape[0] != Y.shape[0]:
+            raise ValueError("X, A, and Y must have the same number of observations.")
+        if self.cfg.y_is_image:
+            expected = (self.cfg.y_channels, self.cfg.y_height, self.cfg.y_width)
+            if Y.ndim != 4 or tuple(Y.shape[1:]) != expected:
+                raise ValueError(f"Expected image outcomes of shape (N,{expected}); got {tuple(Y.shape)}.")
+        else:
+            if Y.ndim == 1:
+                Y = Y.unsqueeze(-1)
+            if Y.ndim != 2 or Y.shape[1] != self.cfg.dim_y:
+                raise ValueError(f"Expected vector outcomes with dim_y={self.cfg.dim_y}.")
+
+        if self.cfg.base_kind == "empirical":
+            self.set_empirical_base(Y, A)
+
+        loader = DataLoader(
+            DatasetDict(X, A, Y),
+            batch_size=min(batch_size, len(X)),
+            shuffle=True,
+        )
+        trainable = [p for p in self.parameters() if p.requires_grad]
+        opt = torch.optim.Adam(trainable, lr=lr, weight_decay=self.cfg.weight_decay)
+
+        self.train()
+        iterator = iter(loader)
+        history = []
+        for step in range(iterations):
+            try:
+                batch = next(iterator)
+            except StopIteration:
+                iterator = iter(loader)
+                batch = next(iterator)
+            opt.zero_grad(set_to_none=True)
+            loss = self.fm_step(batch)
+            if not torch.isfinite(loss):
+                raise FloatingPointError(
+                    f"Non-finite conditional-flow loss at iteration {step + 1}."
+                )
+            loss.backward()
+            opt.step()
+            loss_value = float(loss.detach())
+            history.append(loss_value)
+            if verbose and (
+                step == 0 or (step + 1) % 1000 == 0 or step + 1 == iterations
+            ):
+                print(
+                    f"Outcome nuisance iteration {step + 1}/{iterations} "
+                    f"| loss={loss_value:.6f}"
+                )
+
+        self.training_loss_ = history
+        self.training_steps_ = iterations
+        self.eval()
+        return self
+
     # ------------------------------------------------------------------
     # Sampling
     # ------------------------------------------------------------------

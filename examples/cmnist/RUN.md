@@ -25,7 +25,7 @@ For the full run, do not change the defaults unless explicitly requested. The in
 - `w=5`, `tau=0.08`, `k=10`, `fg_alpha=0`;
 - 10,000 grayscale shape draws × 2 colors = 20,000 fixed labeled observations;
 - propensity estimated by 1000-tree RF with 5-fold depth CV;
-- 20,000 nuisance optimizer updates;
+- 20,000 optimizer updates for each of two matched nuisances: generator-base and Gaussian-base;
 - 20,000 target optimizer updates;
 - batch 128, U-Net width 32, ODE steps 50;
 - plugin reservoir 2;

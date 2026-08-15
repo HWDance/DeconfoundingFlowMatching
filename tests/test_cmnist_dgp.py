@@ -77,3 +77,12 @@ def test_cmnist_runner_estimates_propensity_not_oracle():
     text = runner.read_text()
     assert "RandomForestPropensityEstimator" in text
     assert "OracleSigmoidPropensity" not in text
+
+
+def test_cmnist_gaussian_baseline_uses_generator_free_nuisance():
+    runner = Path(__file__).resolve().parents[1] / "examples" / "cmnist" / "run.py"
+    text = runner.read_text()
+    assert "gaussian_nuisance = ConditionalFlowFM(" in text
+    assert "nuisance_model=gaussian_nuisance" in text
+    assert 'gaussian_nuisance_cfg.base_kind = "gaussian"' in text
+    assert 'hasattr(gaussian_nuisance, "source_generator")' in text

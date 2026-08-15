@@ -30,6 +30,7 @@ The exact source generator remains separate from that fixed causal dataset: each
 ## What is estimated versus oracle
 
 - `pi_hat(A|X)`: estimated from the fixed 20k `(X,A)` dataset by random forest with cross-validation.
-- `P_hat(Y|X,A)`: estimated from the same fixed 20k labeled observations. Its flow-matching **base** is sampled fresh from the exact pretrained-generator stand-in on every optimizer update.
-- DeconfoundingFM / OT-DeconfoundingFM: trained on the fixed observations and estimated nuisances, again with fresh source-generator base draws on every update.
-- Exact/oracle access is used **only for the biased source generator** and for held-out evaluation references.
+- Generator-base `P_hat(Y|X,A)`: estimated from the fixed 20k labeled observations, with its flow-matching base sampled fresh from the exact pretrained-generator stand-in on every optimizer update.
+- Gaussian-base `P_hat_G(Y|X,A)`: a separate, architecture-matched nuisance trained on the same fixed observations from standard Gaussian noise. It has no access to the source generator.
+- DeconfoundingFM / OT-DeconfoundingFM use the generator-base nuisance and fresh source-generator target bases. The Gaussian comparison uses only the Gaussian nuisance and a Gaussian target base.
+- Exact/oracle access is used **only by the generator-based variants** and for held-out evaluation references.
