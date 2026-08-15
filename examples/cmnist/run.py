@@ -25,7 +25,7 @@ from deconfoundingfm.experimental import (
 )
 from deconfoundingfm.nuisance.outcome import ConditionalFlowFMConfig
 from deconfoundingfm.nuisance.propensity import RandomForestConfig, RandomForestPropensityEstimator
-from deconfoundingfm.core.target import DeconfoundingFlow, DeconfoundingFlowConfig
+from deconfoundingfm.core.target import DeconfoundingFlowConfig
 from deconfoundingfm.nn.velocity import UNet
 from deconfoundingfm.experimental.cmnist import save_json
 
@@ -189,10 +189,10 @@ def main():
     print("Estimated propensity RF max_depth:", propensity.history.get("max_depth"))
 
     # ------------------------------------------------------------------
-    # 4. Estimate P(Y|X,A) from the fixed data, but draw fresh generator
-    #    samples as the nuisance FM base on every optimization update.
+    # 4. Estimate P(Y|X,A) for DeconfoundingFM and OT-DeconfoundingFM.
+    #    This nuisance draws fresh generator samples as its FM base.
     # ------------------------------------------------------------------
-    nuisance_cfg = ConditionalFlowFMConfig(
+    generator_nuisance_cfg = ConditionalFlowFMConfig(
         dim_y=1,
         dim_x=1,
         lr=args.nuisance_lr,
@@ -209,10 +209,10 @@ def main():
         x_dim=1,
         unet_c=args.unet_c,
     )
-    nuisance = GeneratorConditionalFlowFM(
-        nuisance_cfg, source_generator, device=device
+    generator_nuisance = GeneratorConditionalFlowFM(
+        generator_nuisance_cfg, source_generator, device=device
     )
-    nuisance.fit_iterations(
+    generator_nuisance.fit_iterations(
         X, A, Y,
         iterations=args.nuisance_steps,
         batch_size=args.batch_size,
@@ -225,12 +225,12 @@ def main():
     ).to(device)
     init_state = deepcopy(init_velocity.state_dict())
 
-    def make_target(*, use_ot=False, base_kind="empirical"):
+    def make_target(*, use_ot=False):
         cfg = DeconfoundingFlowConfig(
             dim_y=1,
             hidden=64,
             layers=1,
-            base_kind=base_kind,
+            base_kind="empirical",
             batch_size=args.batch_size,
             lr=args.target_lr,
             iterations=args.target_steps,
@@ -249,31 +249,24 @@ def main():
             in_channels=3, out_channels=3, num_classes=2, c=args.unet_c
         ).to(device)
         velocity.load_state_dict(init_state)
-        if base_kind == "gaussian":
-            return DeconfoundingFlow(
-                cfg, nuisance, propensity, device=device, velocity=velocity
-            )
         return GeneratorDeconfoundingFlow(
-            cfg, nuisance, propensity, source_generator,
+            cfg, generator_nuisance, propensity, source_generator,
             device=device, velocity=velocity,
         )
 
-    # Fresh source-generator base samples are drawn inside every target FM step.
-    decfm = make_target(use_ot=False, base_kind="empirical")
+    # Fresh source-generator base samples are drawn inside the DeCFM target steps.
+    decfm = make_target(use_ot=False)
     decfm.fit(X, A, Y, verbose=True, checkpoint_steps=args.checkpoints)
 
-    ot = make_target(use_ot=True, base_kind="empirical")
+    ot = make_target(use_ot=True)
     ot.fit(X, A, Y, verbose=True, checkpoint_steps=args.checkpoints)
-
-    gaussian = make_target(use_ot=False, base_kind="gaussian")
-    gaussian.fit(X, A, Y, verbose=True, checkpoint_steps=args.checkpoints)
 
     # ------------------------------------------------------------------
     # 5. Fresh reference evaluation from the exact DGP.
     # ------------------------------------------------------------------
     truth = {}
     source = {}
-    model_samples = {"decfm": {}, "ot": {}, "gaussian": {}}
+    model_samples = {"decfm": {}, "ot": {}}
     for arm in (0, 1):
         _, _, truth_arm = dgp.sample_interventional(arm, args.eval_n)
         truth[arm] = truth_arm.detach().cpu()
@@ -285,9 +278,6 @@ def main():
         )
         model_samples["ot"][arm] = sample_model_chunked(
             ot, arm, args.eval_n, args.sample_chunk
-        )
-        model_samples["gaussian"][arm] = sample_model_chunked(
-            gaussian, arm, args.eval_n, args.sample_chunk
         )
 
     source_sw2, source_arms = mean_arm_sw2(
@@ -301,20 +291,13 @@ def main():
         model_samples["ot"], truth,
         projections=args.sw2_projections, seed=args.seed + 3000,
     )
-    gaussian_sw2, gaussian_arms = mean_arm_sw2(
-        model_samples["gaussian"], truth,
-        projections=args.sw2_projections, seed=args.seed + 4000,
-    )
-
     metrics = {
         "source_sw2": source_sw2,
         "decfm_sw2": decfm_sw2,
         "ot_sw2": ot_sw2,
-        "gaussian_sw2": gaussian_sw2,
         "source_sw2_by_arm": source_arms,
         "decfm_sw2_by_arm": decfm_arms,
         "ot_sw2_by_arm": ot_arms,
-        "gaussian_sw2_by_arm": gaussian_arms,
         "metric_note": "Sliced Wasserstein-2 on flattened RGB images; final value averages arms 0 and 1.",
     }
     print(json.dumps(metrics, indent=2))
@@ -351,26 +334,24 @@ def main():
 
     steps_d, vals_d = checkpoint_curve(decfm, 5000)
     steps_o, vals_o = checkpoint_curve(ot, 6000)
-    steps_g, vals_g = checkpoint_curve(gaussian, 7000)
+    if steps_o != steps_d:
+        raise RuntimeError("Target checkpoint steps do not match.")
     convergence = {
         "steps": steps_d,
         "decfm": vals_d,
         "ot": vals_o,
-        "gaussian": vals_g,
     }
 
     # Compact result bundle used by demo.ipynb.
     saved_samples = {
-        "observed_a0": source[0][:64],
-        "observed_a1": source[1][:64],
-        "true_a0": truth[0][:64],
-        "true_a1": truth[1][:64],
-        "decfm_a0": model_samples["decfm"][0][:64],
-        "decfm_a1": model_samples["decfm"][1][:64],
-        "ot_a0": model_samples["ot"][0][:64],
-        "ot_a1": model_samples["ot"][1][:64],
-        "gaussian_a0": model_samples["gaussian"][0][:64],
-        "gaussian_a1": model_samples["gaussian"][1][:64],
+        "observed_a0": source[0][:64].clone(),
+        "observed_a1": source[1][:64].clone(),
+        "true_a0": truth[0][:64].clone(),
+        "true_a1": truth[1][:64].clone(),
+        "decfm_a0": model_samples["decfm"][0][:64].clone(),
+        "decfm_a1": model_samples["decfm"][1][:64].clone(),
+        "ot_a0": model_samples["ot"][0][:64].clone(),
+        "ot_a1": model_samples["ot"][1][:64].clone(),
     }
 
     config_payload = vars(args).copy()
@@ -382,6 +363,8 @@ def main():
             "k": cmnist_cfg.k,
             "fg_alpha": cmnist_cfg.fg_alpha,
             "ubyte_source": "packaged original t10k-images.idx3-ubyte / t10k-labels.idx1-ubyte",
+            "generator_nuisance_base": "source_generator",
+            "reported_variants": ["decfm", "ot"],
         }
     )
     save_json(config_payload, out / "config.json")

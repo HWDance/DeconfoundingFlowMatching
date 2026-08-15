@@ -1,4 +1,6 @@
 {
-  "preview_only": true,
-  "note": "Exact original UByte DGP preview only. No model training results are committed."
+  "device": "cuda",
+  "seed": 0,
+  "torch_version": "2.13.0+cu130",
+  "cuda_available": true
 }
