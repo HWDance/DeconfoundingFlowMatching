@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deconfoundingfm"
-version = "0.2.9"
+version = "0.2.10"
 description = "Deconfounding observational to counterfactual distributions with flow matching"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -33,6 +33,7 @@ dependencies = [
 
 [project.optional-dependencies]
 demo = ["matplotlib>=3.8", "jupyter>=1.0"]
+cmnist = ["matplotlib>=3.8", "jupyter>=1.0", "torchvision>=0.18"]
 dev = ["pytest>=8", "ruff>=0.6", "build>=1.2"]
 
 [project.urls]

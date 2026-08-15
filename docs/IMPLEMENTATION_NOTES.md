@@ -81,3 +81,10 @@ The paper's semiparametric efficiency statements rely on nuisance fold independe
 nuisance models. It therefore reports `automatic_cross_fitting=False` in diagnostics. The underlying
 training objective is the intended DeconfoundingFM objective, but users requiring the formal
 sample-splitting guarantees should use a cross-fitted workflow until first-class cross-fitting is added.
+
+
+## Population-sampler simulation path
+
+`deconfoundingfm.experimental.PopulationFlowTrainer` is intentionally separate from the finite-data `DeconfoundingFM.fit(X,A,Y)` API. It is for synthetic limiting-population studies only. `fit_outcome` draws a fresh observational minibatch at every nuisance update. `fit_target` redraws X/A/Y and observational source outcomes at every target update, while caching conditional-flow draws on a renewable X-context reservoir because image conditional sampling requires repeated ODE solves. Each fresh X uses the nearest cached context. The reservoir size and refresh frequency are explicit approximation controls.
+
+`deconfoundingfm.datasets.ColorMNISTPopulation` reproduces the research ColorMNIST DGP with vectorized GPU sampling and supports either torchvision's MNIST test split or the original raw IDX files.
