@@ -151,6 +151,46 @@ class ExactColorMNISTSourceGenerator:
         return y.to(target_device)
 
 
+class FixedObservationalCMNISTBaseSampler:
+    """Arm-stratified empirical base reconstructed from one fixed population.
+
+    The image tensors are deliberately reconstructed from the DGP configuration
+    and observational seed instead of being serialized in every correction
+    checkpoint. Sampling is with replacement from observed Y values in the
+    requested treatment arm.
+    """
+
+    def __init__(self, dgp: ColorMNISTDGP, *, observational_seed: int):
+        self.dgp = dgp
+        self.observational_seed = int(observational_seed)
+        self.population = dgp.make_observational_population(seed=self.observational_seed)
+        treatment = self.population["A"].reshape(-1).long()
+        outcomes = self.population["Y"]
+        self._bases = {arm: outcomes[treatment == arm] for arm in (0, 1)}
+        if any(len(base) == 0 for base in self._bases.values()):
+            raise RuntimeError("Fixed CMNIST population is missing a treatment arm.")
+
+    @torch.no_grad()
+    def sample(self, a: int, n: int, device=None):
+        a = int(a)
+        n = int(n)
+        if a not in (0, 1):
+            raise ValueError("a must be 0 or 1.")
+        if n < 1:
+            raise ValueError("n must be >= 1.")
+        base = self._bases[a]
+        indices = torch.randint(len(base), (n,), device=base.device)
+        target_device = _maybe_device(device or base.device)
+        return base[indices].to(target_device)
+
+    def recreate_observational_population(self, *, device=None):
+        target_device = self.dgp.device if device is None else torch.device(device)
+        if target_device == self.dgp.device:
+            return self.population
+        dgp = ColorMNISTDGP(self.dgp.config, device=target_device)
+        return dgp.make_observational_population(seed=self.observational_seed)
+
+
 # Backward-compatible name for one release; prefer ExactColorMNISTSourceGenerator.
 OracleArmConditionalGenerator = ExactColorMNISTSourceGenerator
 
@@ -161,7 +201,7 @@ CHECKPOINT_FORMAT_VERSION = 1
 class CMNISTCorrectionSampler:
     """Inference-only CMNIST correction flow reconstructed from a saved checkpoint.
 
-    The fitted correction velocity and exact source-generator recipe are sufficient
+    The fitted correction velocity and reconstructable base recipe are sufficient
     for post-training sampling. Training nuisances, propensity estimates, plug-in
     reservoirs, optimizer state, and cached base samples are deliberately omitted.
     """
@@ -169,7 +209,7 @@ class CMNISTCorrectionSampler:
     def __init__(
         self,
         velocity: UNet,
-        source_generator: ExactColorMNISTSourceGenerator,
+        base_sampler,
         *,
         variant: str,
         step: int,
@@ -178,7 +218,9 @@ class CMNISTCorrectionSampler:
         checkpoint_metadata: dict,
     ):
         self.velocity = velocity.eval()
-        self.source_generator = source_generator
+        self.base_sampler = base_sampler
+        # Compatibility for callers that used this attribute to reach the DGP.
+        self.source_generator = base_sampler
         self.variant = str(variant)
         self.step = int(step)
         self.ode_steps = int(ode_steps)
@@ -199,7 +241,7 @@ class CMNISTCorrectionSampler:
 
     @torch.no_grad()
     def sample_base(self, arm: int, n: int) -> torch.Tensor:
-        return self.source_generator.sample(int(arm), int(n), device=self.device)
+        return self.base_sampler.sample(int(arm), int(n), device=self.device)
 
     @torch.no_grad()
     def transform(
@@ -258,7 +300,9 @@ class CMNISTCorrectionSampler:
 
     def recreate_observational_population(self, *, device=None):
         target_device = self.device if device is None else torch.device(device)
-        cfg = self.source_generator.dgp.config
+        if hasattr(self.base_sampler, "recreate_observational_population"):
+            return self.base_sampler.recreate_observational_population(device=target_device)
+        cfg = self.base_sampler.dgp.config
         dgp = ColorMNISTDGP(cfg, device=target_device)
         return dgp.make_observational_population(seed=self.observational_seed)
 
@@ -274,13 +318,22 @@ def save_cmnist_correction_checkpoint(
     target_config: dict,
     dgp_config: CMNISTConfig,
     observational_seed: int,
+    base_mode: str = "source_generator",
 ):
     """Save a portable, sample-free correction checkpoint."""
+    if base_mode not in {"source_generator", "observational_empirical"}:
+        raise ValueError(
+            "base_mode must be 'source_generator' or 'observational_empirical'."
+        )
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "format_version": CHECKPOINT_FORMAT_VERSION,
-        "kind": "cmnist_generator_correction",
+        "kind": (
+            "cmnist_generator_correction"
+            if base_mode == "source_generator"
+            else "cmnist_correction"
+        ),
         "variant": str(variant),
         "step": int(step),
         "state_dict": {key: value.detach().cpu().clone() for key, value in state_dict.items()},
@@ -294,7 +347,19 @@ def save_cmnist_correction_checkpoint(
         "target_config": dict(target_config),
         "dgp_config": asdict(dgp_config),
         "observational_seed": int(observational_seed),
-        "source_generator": "ExactColorMNISTSourceGenerator",
+        "base_mode": base_mode,
+        "source_generator": (
+            "ExactColorMNISTSourceGenerator"
+            if base_mode == "source_generator"
+            else None
+        ),
+        "base_reconstruction": (
+            "ColorMNISTDGP(CMNISTConfig(**dgp_config))"
+            ".make_observational_population(seed=observational_seed); "
+            "use Y[A == arm]"
+            if base_mode == "observational_empirical"
+            else "ExactColorMNISTSourceGenerator"
+        ),
         "omitted_state": [
             "nuisance_outcome",
             "nuisance_propensity",
@@ -312,13 +377,13 @@ def load_cmnist_correction_checkpoint(
     *,
     device: torch.device | str | None = None,
 ) -> CMNISTCorrectionSampler:
-    """Load a correction checkpoint and reconstruct its fresh CMNIST base sampler."""
+    """Load a correction checkpoint and reconstruct its CMNIST base sampler."""
     path = Path(path)
     target_device = _maybe_device(device)
     payload = torch.load(path, map_location=target_device, weights_only=True)
     if payload.get("format_version") != CHECKPOINT_FORMAT_VERSION:
         raise ValueError(f"Unsupported checkpoint format in {path}.")
-    if payload.get("kind") != "cmnist_generator_correction":
+    if payload.get("kind") not in {"cmnist_generator_correction", "cmnist_correction"}:
         raise ValueError(f"Not a CMNIST correction checkpoint: {path}.")
 
     velocity_cfg = payload["velocity_config"]
@@ -335,11 +400,20 @@ def load_cmnist_correction_checkpoint(
     dgp_values = dict(payload["dgp_config"])
     dgp_values["digits"] = tuple(dgp_values["digits"])
     dgp = ColorMNISTDGP(CMNISTConfig(**dgp_values), device=target_device)
-    source_generator = ExactColorMNISTSourceGenerator(dgp)
+    base_mode = payload.get("base_mode", "source_generator")
+    if base_mode == "source_generator":
+        base_sampler = ExactColorMNISTSourceGenerator(dgp)
+    elif base_mode == "observational_empirical":
+        base_sampler = FixedObservationalCMNISTBaseSampler(
+            dgp,
+            observational_seed=payload["observational_seed"],
+        )
+    else:
+        raise ValueError(f"Unsupported CMNIST checkpoint base mode: {base_mode!r}.")
     target_cfg = payload.get("target_config", {})
     return CMNISTCorrectionSampler(
         velocity,
-        source_generator,
+        base_sampler,
         variant=payload["variant"],
         step=payload["step"],
         ode_steps=int(target_cfg.get("ode_steps", payload.get("ode_steps", 50))),

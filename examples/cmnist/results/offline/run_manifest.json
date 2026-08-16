@@ -1,0 +1,7 @@
+{
+  "device": "cuda",
+  "seed": 0,
+  "torch_version": "2.13.0+cu130",
+  "cuda_available": true,
+  "skip_fid": false
+}

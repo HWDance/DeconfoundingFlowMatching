@@ -1,0 +1,61 @@
+{
+  "output": "/nfs/ghome/live/danceh/DeconfoundingFlowMatching/examples/cmnist/results/offline",
+  "device": "cuda",
+  "seed": 0,
+  "bw_shapes": 10000,
+  "colors_per_shape": 2,
+  "confounding_w": 5.0,
+  "propensity_trees": 1000,
+  "propensity_cv_folds": 5,
+  "nuisance_steps": 20000,
+  "nuisance_lr": 0.0001,
+  "target_steps": 20000,
+  "target_lr": 0.0001,
+  "batch_size": 128,
+  "unet_c": 32,
+  "ode_steps": 50,
+  "plugin_reservoir": 2,
+  "plugin_batch": 1,
+  "base_noise_std": 0.0,
+  "checkpoints": [
+    250,
+    500,
+    1000,
+    2000,
+    5000,
+    10000,
+    15000,
+    20000
+  ],
+  "eval_n": 5000,
+  "checkpoint_eval_n": 512,
+  "sw2_projections": 256,
+  "sample_chunk": 64,
+  "skip_fid": false,
+  "fid_batch_size": 64,
+  "trajectory_n": 512,
+  "trajectory_keep": 8,
+  "trajectory_chunk": 64,
+  "smoke": false,
+  "observational_n": 20000,
+  "digits": [
+    1,
+    6
+  ],
+  "tau": 0.08,
+  "k": 10.0,
+  "fg_alpha": 0.0,
+  "ubyte_source": "packaged original t10k-images.idx3-ubyte / t10k-labels.idx1-ubyte",
+  "study_mode": "offline_empirical",
+  "nuisance_base": "fixed_observational_Y_stratified_by_A",
+  "target_base": "fixed_observational_Y_stratified_by_A",
+  "fresh_generator_base_used": false,
+  "empirical_base_n_by_arm": {
+    "arm0": 9990,
+    "arm1": 10010
+  },
+  "reported_variants": [
+    "decfm",
+    "ot"
+  ]
+}

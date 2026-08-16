@@ -139,3 +139,48 @@ def test_portable_correction_checkpoint_reloads_and_recreates_data(tmp_path):
     expected = ColorMNISTDGP(dgp_cfg, device="cpu").make_observational_population(seed=7)
     for key in ("X", "A", "Y", "shape_id", "color_draw"):
         assert torch.equal(recreated[key], expected[key])
+
+
+
+def test_offline_runner_uses_fixed_observational_bases_only():
+    runner = Path(__file__).resolve().parents[1] / "examples" / "cmnist" / "run_offline.py"
+    text = runner.read_text()
+    assert "ConditionalFlowFM(offline_nuisance_cfg" in text
+    assert "return DeconfoundingFlow(" in text
+    assert "GeneratorConditionalFlowFM" not in text
+    assert "GeneratorDeconfoundingFlow" not in text
+    assert 'base_mode="observational_empirical"' in text
+    assert '"nuisance_base": "fixed_observational_Y_stratified_by_A"' in text
+    assert '"target_base": "fixed_observational_Y_stratified_by_A"' in text
+
+
+def test_offline_checkpoint_reconstructs_empirical_arm_bases(tmp_path):
+    dgp_cfg = CMNISTConfig(n_bw_shapes=8, color_draws_per_shape=2)
+    velocity = UNet(in_channels=3, out_channels=3, num_classes=2, c=2)
+    path = tmp_path / "offline_step_000001.pt"
+    save_cmnist_correction_checkpoint(
+        path,
+        state_dict=velocity.state_dict(),
+        variant="ot",
+        step=1,
+        ode_steps=1,
+        unet_c=2,
+        target_config={"ode_steps": 1, "use_ot": True},
+        dgp_config=dgp_cfg,
+        observational_seed=13,
+        base_mode="observational_empirical",
+    )
+    payload = torch.load(path, map_location="cpu", weights_only=True)
+    assert payload["kind"] == "cmnist_correction"
+    assert payload["base_mode"] == "observational_empirical"
+    assert payload["source_generator"] is None
+    assert "cached_base_samples" not in payload
+
+    sampler = load_cmnist_correction_checkpoint(path, device="cpu")
+    population = sampler.recreate_observational_population(device="cpu")
+    treatment = population["A"].reshape(-1).long()
+    for arm in (0, 1):
+        samples = sampler.sample_base(arm, 3)
+        arm_base = population["Y"][treatment == arm]
+        for sample in samples:
+            assert (arm_base == sample).flatten(1).all(dim=1).any()

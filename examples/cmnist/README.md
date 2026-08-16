@@ -18,6 +18,19 @@ python examples/cmnist/run.py --device cuda --output examples/cmnist/results/def
 python -m nbconvert --to notebook --execute --inplace examples/cmnist/demo.ipynb
 ```
 
+A separate offline empirical-base variant is available without modifying the
+online result bundle:
+
+```bash
+python examples/cmnist/run_offline.py --device cuda --output examples/cmnist/results/offline
+python -m nbconvert --to notebook --execute --inplace examples/cmnist/demo_offline.ipynb
+```
+
+In this variant, the nuisance and both target flows use the same fixed
+observational outcomes, stratified by arm, as their empirical bases. Sampling
+is with replacement; the exact 20,000-example population is reconstructed from
+checkpoint metadata rather than embedded in each checkpoint.
+
 ## Data and fitted components
 
 The binary design uses digits `(1, 6)`, `X ~ Uniform(0,1)`, and

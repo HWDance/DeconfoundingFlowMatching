@@ -26,6 +26,28 @@ python -m nbconvert \
   examples/cmnist/demo.ipynb
 ```
 
+For the separate offline empirical-base study:
+
+```bash
+python examples/cmnist/run_offline.py --smoke --device cuda \
+  --output examples/cmnist/results/offline_smoke
+python examples/cmnist/run_offline.py --device cuda \
+  --output examples/cmnist/results/offline
+python examples/cmnist/audit_results.py examples/cmnist/results/offline \
+  --device cuda --require-full-defaults \
+  --expected-study-mode offline_empirical
+python -m nbconvert \
+  --to notebook --execute --inplace \
+  --ExecutePreprocessor.timeout=1200 \
+  examples/cmnist/demo_offline.ipynb
+```
+
+The offline runner changes only the base source: the outcome nuisance and both
+target variants sample with replacement from the arm-stratified observed
+outcomes in the same fixed 20,000-example population. No fresh generator bases
+are used. Checkpoints omit these tensors and reconstruct the population from
+the saved DGP configuration and seed before recovering Y[A == arm].
+
 The intended full defaults are:
 
 - exact packaged original `t10k` IDX source and digits `(1,6)`;

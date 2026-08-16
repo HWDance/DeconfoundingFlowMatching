@@ -49,6 +49,7 @@ def audit_result_directory(
     *,
     device: str = "cpu",
     require_full_defaults: bool = False,
+    expected_study_mode: str | None = None,
 ) -> dict:
     result_dir = result_dir.resolve()
     missing = sorted(name for name in REQUIRED_FILES if not (result_dir / name).is_file())
@@ -69,7 +70,22 @@ def audit_result_directory(
         raise AssertionError(f"Unexpected checkpoint methods: {sorted(manifest['models'])}")
     if data_manifest.get("direct_observational_tensor_saved") is not False:
         raise AssertionError("Observational tensors should be reconstructed, not bundled.")
-    if data_manifest.get("fresh_base_samples_available") is not True:
+    study_mode = config.get("study_mode", "online_generator")
+    if expected_study_mode is not None and study_mode != expected_study_mode:
+        raise AssertionError(
+            f"Expected study mode {expected_study_mode!r}, found {study_mode!r}."
+        )
+    is_offline = study_mode == "offline_empirical"
+    if is_offline:
+        if data_manifest.get("empirical_base_reconstructable") is not True:
+            raise AssertionError("Offline empirical bases are not declared reconstructable.")
+        if data_manifest.get("fresh_generator_base_used") is not False:
+            raise AssertionError("Offline result incorrectly declares fresh generator use.")
+        if config.get("nuisance_base") != "fixed_observational_Y_stratified_by_A":
+            raise AssertionError("Offline nuisance base is not the fixed observed Y.")
+        if config.get("target_base") != "fixed_observational_Y_stratified_by_A":
+            raise AssertionError("Offline target base is not the fixed observed Y.")
+    elif data_manifest.get("fresh_base_samples_available") is not True:
         raise AssertionError("Fresh generator bases are not declared reconstructable.")
 
     expected_eval_n = int(config["eval_n"])
@@ -109,8 +125,14 @@ def audit_result_directory(
             if not checkpoint_path.is_file():
                 raise AssertionError(f"Missing checkpoint: {checkpoint_path}")
             payload = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
-            if payload["kind"] != "cmnist_generator_correction":
+            expected_kind = "cmnist_correction" if is_offline else "cmnist_generator_correction"
+            if payload["kind"] != expected_kind:
                 raise AssertionError(f"Wrong checkpoint type: {checkpoint_path}")
+            expected_base_mode = (
+                "observational_empirical" if is_offline else "source_generator"
+            )
+            if payload.get("base_mode", "source_generator") != expected_base_mode:
+                raise AssertionError(f"Wrong checkpoint base mode: {checkpoint_path}")
             if payload["variant"] != method or payload["step"] != int(step_text):
                 raise AssertionError(f"Checkpoint metadata mismatch: {checkpoint_path}")
             if set(payload) & {
@@ -178,6 +200,10 @@ def audit_result_directory(
         "checkpoint_count": checkpoint_count,
         "checkpoint_bytes": checkpoint_bytes,
         "checkpoint_mib": checkpoint_bytes / (1024**2),
+        "study_mode": study_mode,
+        "checkpoint_base_mode": (
+            "observational_empirical" if is_offline else "source_generator"
+        ),
         "fresh_inference": "passed",
         "artifact_audit": "passed",
     }
@@ -188,11 +214,17 @@ def main() -> None:
     parser.add_argument("result_dir", type=Path)
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--require-full-defaults", action="store_true")
+    parser.add_argument(
+        "--expected-study-mode",
+        choices=("online_generator", "offline_empirical"),
+        default=None,
+    )
     args = parser.parse_args()
     summary = audit_result_directory(
         args.result_dir,
         device=args.device,
         require_full_defaults=args.require_full_defaults,
+        expected_study_mode=args.expected_study_mode,
     )
     print(json.dumps(summary, indent=2))
 
