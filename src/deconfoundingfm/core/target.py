@@ -582,9 +582,11 @@ class DeconfoundingFlow(nn.Module):
 
                 if (
                     self.cfg.update_plugin_reservoir
-                    and step > 0
-                    and step % int(self.cfg.plugin_reservoir_update_frequency) == 0
+                    and current_step < n_steps
+                    and current_step % int(self.cfg.plugin_reservoir_update_frequency) == 0
                 ):
+                    if verbose:
+                        print(f"Refreshing plug-in reservoir after iteration {current_step}.")
                     self.set_plugin_samples(X, A)
             self.training_steps_ = n_steps
         else:

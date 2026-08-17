@@ -1,37 +1,37 @@
 {
   "source": {
-    "arm0_vs_arm1_w1": 0.32036489248275757,
-    "arm0_vs_uniform_w1": 0.1587432324886322,
-    "arm1_vs_uniform_w1": 0.16162168979644775,
-    "arm0_vs_uniform_ks": 0.25283724069595337,
-    "arm1_vs_uniform_ks": 0.25020191073417664,
+    "arm0_vs_arm1_w1": 0.33742937445640564,
+    "arm0_vs_uniform_w1": 0.1705055981874466,
+    "arm1_vs_uniform_w1": 0.16692392528057098,
+    "arm0_vs_uniform_ks": 0.2755899131298065,
+    "arm1_vs_uniform_ks": 0.26771777868270874,
     "n_images_arm0": 5000,
     "n_images_arm1": 5000
   },
   "truth": {
-    "arm0_vs_arm1_w1": 0.010501481592655182,
-    "arm0_vs_uniform_w1": 0.003948806785047054,
-    "arm1_vs_uniform_w1": 0.0075277304276824,
-    "arm0_vs_uniform_ks": 0.010988324880599976,
-    "arm1_vs_uniform_ks": 0.01656019687652588,
+    "arm0_vs_arm1_w1": 0.005156588274985552,
+    "arm0_vs_uniform_w1": 0.0063172597438097,
+    "arm1_vs_uniform_w1": 0.0023049090523272753,
+    "arm0_vs_uniform_ks": 0.01679062843322754,
+    "arm1_vs_uniform_ks": 0.007083885371685028,
     "n_images_arm0": 5000,
     "n_images_arm1": 5000
   },
   "decfm": {
-    "arm0_vs_arm1_w1": 0.26832687854766846,
-    "arm0_vs_uniform_w1": 0.12944629788398743,
-    "arm1_vs_uniform_w1": 0.13934065401554108,
-    "arm0_vs_uniform_ks": 0.22050416469573975,
-    "arm1_vs_uniform_ks": 0.21729417145252228,
+    "arm0_vs_arm1_w1": 0.11820417642593384,
+    "arm0_vs_uniform_w1": 0.06769677996635437,
+    "arm1_vs_uniform_w1": 0.05384690687060356,
+    "arm0_vs_uniform_ks": 0.10079324245452881,
+    "arm1_vs_uniform_ks": 0.08663981407880783,
     "n_images_arm0": 5000,
     "n_images_arm1": 5000
   },
   "ot": {
-    "arm0_vs_arm1_w1": 0.08648153394460678,
-    "arm0_vs_uniform_w1": 0.06391248852014542,
-    "arm1_vs_uniform_w1": 0.030453020706772804,
-    "arm0_vs_uniform_ks": 0.11225390434265137,
-    "arm1_vs_uniform_ks": 0.04887142777442932,
+    "arm0_vs_arm1_w1": 0.030819525942206383,
+    "arm0_vs_uniform_w1": 0.03002796322107315,
+    "arm1_vs_uniform_w1": 0.026064902544021606,
+    "arm0_vs_uniform_ks": 0.05770796537399292,
+    "arm1_vs_uniform_ks": 0.054600171744823456,
     "n_images_arm0": 5000,
     "n_images_arm1": 5000
   }

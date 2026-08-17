@@ -29,10 +29,8 @@ from deconfoundingfm.experimental import (
 )
 from deconfoundingfm.experimental.cmnist import (
     color_distribution_diagnostics,
-    fid_from_reference,
-    inception_features,
-    make_inception_feature_extractor,
-    prepare_fid_reference,
+    pack_display_samples,
+    pack_display_trajectories,
     save_json,
 )
 from deconfoundingfm.integrators import integrate_midpoint_trajectory
@@ -49,9 +47,8 @@ def build_parser():
     p.add_argument("--device", type=str, default=None)
     p.add_argument("--seed", type=int, default=0)
 
-    # Fixed labeled observational population.
-    p.add_argument("--bw-shapes", type=int, default=10_000)
-    p.add_argument("--colors-per-shape", type=int, default=2)
+    # Fixed iid labeled observational population.
+    p.add_argument("--observational-n", type=int, default=20_000)
     p.add_argument("--confounding-w", type=float, default=5.0)
 
     # Estimated propensity nuisance.
@@ -59,23 +56,24 @@ def build_parser():
     p.add_argument("--propensity-cv-folds", type=int, default=5)
 
     # Conditional outcome nuisance: exact update budget, fresh generator base each update.
-    p.add_argument("--nuisance-steps", type=int, default=20_000)
+    p.add_argument("--nuisance-steps", type=int, default=100_000)
     p.add_argument("--nuisance-lr", type=float, default=1e-4)
 
     # Target flows.
-    p.add_argument("--target-steps", type=int, default=20_000)
+    p.add_argument("--target-steps", type=int, default=100_000)
     p.add_argument("--target-lr", type=float, default=1e-4)
     p.add_argument("--batch-size", type=int, default=128)
     p.add_argument("--unet-c", type=int, default=32)
     p.add_argument("--ode-steps", type=int, default=50)
     p.add_argument("--plugin-reservoir", type=int, default=2)
     p.add_argument("--plugin-batch", type=int, default=1)
-    p.add_argument("--base-noise-std", type=float, default=0.0)
+    p.add_argument("--base-noise-std", type=float, default=0.1)
+    p.add_argument("--plugin-reservoir-update-frequency", type=int, default=10_000)
     p.add_argument(
         "--checkpoints",
         type=int,
         nargs="*",
-        default=[250, 500, 1000, 2000, 5000, 10000, 15000, 20000],
+        default=[1000, 2500, 5000, 10000, 20000, 50000, 75000, 100000],
     )
 
     # Evaluation.
@@ -83,8 +81,6 @@ def build_parser():
     p.add_argument("--checkpoint-eval-n", type=int, default=512)
     p.add_argument("--sw2-projections", type=int, default=256)
     p.add_argument("--sample-chunk", type=int, default=64)
-    p.add_argument("--skip-fid", action="store_true")
-    p.add_argument("--fid-batch-size", type=int, default=64)
     p.add_argument("--trajectory-n", type=int, default=512)
     p.add_argument("--trajectory-keep", type=int, default=8)
     p.add_argument("--trajectory-chunk", type=int, default=64)
@@ -138,12 +134,16 @@ def foreground_pixel_change(
     y0: torch.Tensor,
     y1: torch.Tensor,
     *,
+    foreground_reference: torch.Tensor | None = None,
     foreground_threshold: float = 0.05,
 ) -> torch.Tensor:
-    """Mean absolute RGB change restricted to source-digit foreground pixels."""
+    """Mean absolute RGB change restricted to clean source-digit foreground pixels."""
     if y0.shape != y1.shape or y0.ndim != 4:
         raise ValueError("y0 and y1 must have matching image batches.")
-    foreground = y0.sum(dim=1) > float(foreground_threshold)
+    reference = y0 if foreground_reference is None else foreground_reference
+    if reference.shape != y0.shape:
+        raise ValueError("foreground_reference must match the trajectory batch shape.")
+    foreground = reference.sum(dim=1) > float(foreground_threshold)
     per_pixel = (y1 - y0).abs().mean(dim=1)
     numerator = (per_pixel * foreground).sum(dim=(1, 2))
     denominator = foreground.sum(dim=(1, 2)).clamp_min(1)
@@ -155,6 +155,7 @@ def trajectory_diagnostics(
     model,
     base_samples_by_arm,
     *,
+    foreground_references_by_arm=None,
     arms=(0, 1),
     steps=50,
     keep=8,
@@ -200,7 +201,16 @@ def trajectory_diagnostics(
                 )
             else:
                 derivative_energy = torch.zeros(len(y0), device=y0.device, dtype=y0.dtype)
-            change = foreground_pixel_change(traj[0], traj[-1])
+            foreground_reference = None
+            if foreground_references_by_arm is not None:
+                foreground_reference = foreground_references_by_arm[arm][
+                    start : start + int(chunk)
+                ].to(device)
+            change = foreground_pixel_change(
+                traj[0],
+                traj[-1],
+                foreground_reference=foreground_reference,
+            )
             trajectories.append(traj.detach().cpu())
             for key, tensor in (
                 ("foreground_pixel_change", change),
@@ -270,8 +280,7 @@ def trajectory_diagnostics(
 def main():
     args = build_parser().parse_args()
     if args.smoke:
-        args.bw_shapes = 16
-        args.colors_per_shape = 2
+        args.observational_n = 32
         args.propensity_trees = 10
         args.propensity_cv_folds = 2
         args.nuisance_steps = 1
@@ -285,7 +294,6 @@ def main():
         args.sw2_projections = 4
         args.sample_chunk = 4
         args.checkpoints = [1]
-        args.skip_fid = True
         args.trajectory_n = 4
         args.trajectory_keep = 2
         args.trajectory_chunk = 2
@@ -307,7 +315,7 @@ def main():
         torch.backends.cudnn.benchmark = True
 
     # ------------------------------------------------------------------
-    # 1. Exact original CMNIST DGP + fixed 20k labeled population.
+    # 1. Exact CMNIST DGP + fixed 20k iid labeled population.
     # ------------------------------------------------------------------
     cmnist_cfg = CMNISTConfig(
         digits=(1, 6),
@@ -317,19 +325,18 @@ def main():
         tau=0.08,
         k=10.0,
         fg_alpha=0.0,
-        n_bw_shapes=args.bw_shapes,
-        color_draws_per_shape=args.colors_per_shape,
     )
     dgp = ColorMNISTDGP(cmnist_cfg, device=device)
-    population = dgp.make_observational_population(seed=args.seed)
-    X, A, Y = population["X"], population["A"], population["Y"]
-    expected_n = args.bw_shapes * args.colors_per_shape
-    if len(X) != expected_n:
-        raise RuntimeError(f"Expected {expected_n} observational examples, got {len(X)}.")
-    print(
-        f"CMNIST observational population: {len(X):,} images "
-        f"({args.bw_shapes:,} grayscale shape draws x {args.colors_per_shape} colors)"
+    population = dgp.make_iid_observational_population(
+        args.observational_n,
+        seed=args.seed,
     )
+    X, A, Y = population["X"], population["A"], population["Y"]
+    if len(X) != args.observational_n:
+        raise RuntimeError(
+            f"Expected {args.observational_n} observational examples, got {len(X)}."
+        )
+    print(f"CMNIST iid observational population: {len(X):,} independently generated rows")
 
     # ------------------------------------------------------------------
     # 2. Pretrained biased generator stand-in: exact fresh P(Y|A=a) draws.
@@ -363,7 +370,7 @@ def main():
         batch_size=args.batch_size,
         ode_steps=args.ode_steps,
         base_kind="empirical",  # intercepted by GeneratorConditionalFlowFM
-        base_noise_std=0.0,
+        base_noise_std=args.base_noise_std,
         velocity_kind="unetx",
         y_is_image=True,
         y_channels=3,
@@ -401,7 +408,8 @@ def main():
             ode_steps=args.ode_steps,
             plugin_reservoir=args.plugin_reservoir,
             plugin_batch=args.plugin_batch,
-            update_plugin_reservoir=False,
+            update_plugin_reservoir=True,
+            plugin_reservoir_update_frequency=args.plugin_reservoir_update_frequency,
             base_noise_std=args.base_noise_std,
             use_ot=use_ot,
             ot_src_batch=args.batch_size,
@@ -448,6 +456,8 @@ def main():
                 target_config=asdict(model.cfg),
                 dgp_config=cmnist_cfg,
                 observational_seed=args.seed,
+                observational_design="iid_observational",
+                observational_n=len(X),
             )
             entries[str(int(step))] = relative_path.as_posix()
         return {
@@ -459,6 +469,7 @@ def main():
     model_manifest = {
         "format_version": 1,
         "path_kind": "relative_to_result_directory",
+        "artifact_policy": "all_checkpoints",
         "models": {
             "decfm": save_model_checkpoints(decfm, "decfm"),
             "ot": save_model_checkpoints(ot, "ot"),
@@ -510,62 +521,6 @@ def main():
         "sw2_projection_seed": int(final_projection_seed),
         "metric_note": "Sliced Wasserstein-2 on flattened RGB images; final value averages arms 0 and 1. Every method uses identical projection directions.",
     }
-    inception = None
-    if not args.skip_fid:
-        print("Loading ImageNet-pretrained Inception-v3 for FID ...")
-        inception = make_inception_feature_extractor(device=device)
-    if inception is not None:
-        fid_source = []
-        fid_decfm = []
-        fid_ot = []
-        for arm in (0, 1):
-            real_feats = inception_features(
-                truth[arm],
-                inception,
-                batch_size=args.fid_batch_size,
-                device=device,
-            )
-            reference = prepare_fid_reference(real_feats)
-            source_feats = inception_features(
-                source[arm],
-                inception,
-                batch_size=args.fid_batch_size,
-                device=device,
-            )
-            fid_source.append(fid_from_reference(reference, source_feats))
-            del source_feats
-            decfm_feats = inception_features(
-                model_samples["decfm"][arm],
-                inception,
-                batch_size=args.fid_batch_size,
-                device=device,
-            )
-            fid_decfm.append(fid_from_reference(reference, decfm_feats))
-            del decfm_feats
-            ot_feats = inception_features(
-                model_samples["ot"][arm],
-                inception,
-                batch_size=args.fid_batch_size,
-                device=device,
-            )
-            fid_ot.append(fid_from_reference(reference, ot_feats))
-            del real_feats, reference, ot_feats
-        metrics.update(
-            {
-                "source_fid": float(sum(fid_source) / len(fid_source)),
-                "decfm_fid": float(sum(fid_decfm) / len(fid_decfm)),
-                "ot_fid": float(sum(fid_ot) / len(fid_ot)),
-                "source_fid_by_arm": fid_source,
-                "decfm_fid_by_arm": fid_decfm,
-                "ot_fid_by_arm": fid_ot,
-                "fid_evaluation_n_per_arm": int(args.eval_n),
-                "fid_note": (
-                    "FID computed from official ImageNet-normalized, pretrained "
-                    "Inception-v3 penultimate features; final value averages arms "
-                    "0 and 1. This feature definition is recorded for reproducibility."
-                ),
-            }
-        )
     print(json.dumps(metrics, indent=2))
 
     # Checkpoint convergence uses one deterministic truth set and one shared source
@@ -586,6 +541,10 @@ def main():
             args.checkpoint_eval_n,
             args.sample_chunk,
         )
+        if args.base_noise_std > 0:
+            checkpoint_bases[arm] = checkpoint_bases[arm] + (
+                args.base_noise_std * torch.randn_like(checkpoint_bases[arm])
+            )
 
     checkpoint_projection_seed = args.seed + 5000
 
@@ -653,9 +612,18 @@ def main():
     trajectory_bases = {
         arm: source_generator.sample(arm, args.trajectory_n, device="cpu") for arm in (0, 1)
     }
+    trajectory_clean_bases = {
+        arm: base.clone() for arm, base in trajectory_bases.items()
+    }
+    if args.base_noise_std > 0:
+        trajectory_bases = {
+            arm: base + args.base_noise_std * torch.randn_like(base)
+            for arm, base in trajectory_bases.items()
+        }
     traj_summary_decfm, traj_saved_decfm = trajectory_diagnostics(
         decfm,
         trajectory_bases,
+        foreground_references_by_arm=trajectory_clean_bases,
         steps=args.ode_steps,
         keep=args.trajectory_keep,
         chunk=args.trajectory_chunk,
@@ -663,6 +631,7 @@ def main():
     traj_summary_ot, traj_saved_ot = trajectory_diagnostics(
         ot,
         trajectory_bases,
+        foreground_references_by_arm=trajectory_clean_bases,
         steps=args.ode_steps,
         keep=args.trajectory_keep,
         chunk=args.trajectory_chunk,
@@ -697,7 +666,12 @@ def main():
             "k": cmnist_cfg.k,
             "fg_alpha": cmnist_cfg.fg_alpha,
             "ubyte_source": "packaged original t10k-images.idx3-ubyte / t10k-labels.idx1-ubyte",
-            "generator_nuisance_base": "source_generator",
+            "study_mode": "online_generator",
+            "observational_design": "iid_observational",
+            "generator_nuisance_base": "source_generator_plus_gaussian_noise",
+            "target_base": "source_generator_plus_gaussian_noise",
+            "fresh_generator_base_used": True,
+            "update_plugin_reservoir": True,
             "reported_variants": ["decfm", "ot"],
         }
     )
@@ -709,11 +683,17 @@ def main():
     save_json(model_manifest, out / "model_manifest.json")
     save_json(
         {
-            "reconstruction": "ColorMNISTDGP(CMNISTConfig(**dgp_config)).make_observational_population(seed=observational_seed)",
+            "reconstruction": "ColorMNISTDGP(CMNISTConfig(**dgp_config)).make_iid_observational_population(observational_n, seed=observational_seed)",
+            "observational_design": "iid_observational",
             "observational_seed": int(args.seed),
-            "dgp_config": asdict(cmnist_cfg),
+            "dgp_config": {
+                key: value
+                for key, value in asdict(cmnist_cfg).items()
+                if key not in {"n_bw_shapes", "color_draws_per_shape"}
+            },
             "observational_n": len(X),
             "direct_observational_tensor_saved": False,
+            "display_artifact_encoding": "uint8_rgb_scaled_by_255",
             "source_generator": "ExactColorMNISTSourceGenerator",
             "fresh_base_samples_available": True,
         },
@@ -725,13 +705,17 @@ def main():
             "seed": args.seed,
             "torch_version": torch.__version__,
             "cuda_available": bool(torch.cuda.is_available()),
-            "skip_fid": bool(args.skip_fid),
         },
         out / "run_manifest.json",
     )
-    torch.save(saved_samples, out / "samples.pt")
+    torch.save(pack_display_samples(saved_samples), out / "samples.pt")
     torch.save(color_values, out / "color_values.pt")
-    torch.save({"decfm": traj_saved_decfm, "ot": traj_saved_ot}, out / "trajectories.pt")
+    torch.save(
+        pack_display_trajectories(
+            {"decfm": traj_saved_decfm, "ot": traj_saved_ot}
+        ),
+        out / "trajectories.pt",
+    )
     print(f"Saved CMNIST result bundle to {out}")
 
 

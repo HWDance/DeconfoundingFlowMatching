@@ -24,8 +24,6 @@
   "checkpoint_eval_n": 4,
   "sw2_projections": 4,
   "sample_chunk": 4,
-  "skip_fid": true,
-  "fid_batch_size": 64,
   "trajectory_n": 4,
   "trajectory_keep": 2,
   "smoke": true,

@@ -45,24 +45,31 @@ python -m nbconvert \
 The offline runner changes only the base source: the outcome nuisance and both
 target variants sample with replacement from the arm-stratified observed
 outcomes in the same fixed 20,000-example population. No fresh generator bases
-are used. Checkpoints omit these tensors and reconstruct the population from
-the saved DGP configuration and seed before recovering Y[A == arm].
+are used. Independent Gaussian pixel noise with standard deviation `0.1` is
+added to each empirical base draw. Checkpoints omit these tensors and
+reconstruct the population from the saved DGP configuration and seed before
+recovering Y[A == arm].
+
 
 The intended full defaults are:
 
 - exact packaged original `t10k` IDX source and digits `(1,6)`;
 - `w=5`, `tau=0.08`, `k=10`, and `fg_alpha=0`;
-- 10,000 grayscale shapes x two colors = 20,000 fixed observations;
+- 20,000 independently generated observational rows, with a fresh arm-specific shape sampled with replacement for every row;
 - 1,000-tree propensity random forest with five-fold depth cross-validation;
-- one generator-base outcome nuisance trained for 20,000 optimizer updates;
-- independent-coupling and OT target flows, each trained for 20,000 updates;
+- one outcome nuisance trained for 100,000 optimizer updates;
+- independent-coupling and OT target flows, each trained for 100,000 updates;
 - batch size 128, U-Net width 32, 50 midpoint ODE steps;
-- plug-in reservoir 2 and plug-in batch 1;
-- target checkpoints at 250, 500, 1k, 2k, 5k, 10k, 15k, and 20k;
-- final SW2/FID evaluation on 5,000 fresh samples per arm;
+- base Gaussian pixel-noise standard deviation `0.1` for nuisance and target flows;
+- plug-in reservoir 2 and plug-in batch 1, rebuilt after every 10,000 completed target updates;
+- target checkpoints at 1k, 2.5k, 5k, 10k, 20k, 50k, 75k, and 100k;
+- final SW2 evaluation on 5,000 fresh samples per arm;
 - checkpoint SW2 on one deterministic 512-sample truth/base batch per arm, shared across methods and steps;
 - trajectory selection from a shared batch of 512 per arm, saving top/bottom eight.
 
-A successful result directory has `config.json`, `metrics.json`, `convergence.json`, `run_manifest.json`, `data_manifest.json`, `model_manifest.json`, `samples.pt`, `color_values.pt`, `color_diagnostics.json`, `trajectories.pt`, `trajectory_summary.json`, and both checkpoint directories. Checkpoint payloads must have no nuisance, propensity, optimizer, plug-in-reservoir, or cached-base tensors.
+A successful result directory has `config.json`, `metrics.json`, `convergence.json`, `run_manifest.json`, `data_manifest.json`, `model_manifest.json`, `samples.pt`, `color_values.pt`, `color_diagnostics.json`, `trajectories.pt`, `trajectory_summary.json`, and both checkpoint directories. Checkpoint payloads must have no nuisance, propensity, optimizer, plug-in-reservoir, or cached-base tensors. Full local runs retain every scheduled checkpoint; the lean committed demo bundles retain the final Independent and OT checkpoint while keeping precomputed convergence for every scheduled step. Plotting grids and saved trajectory images use compact 8-bit storage.
 
-The supplied `hpc/cmnist_full.sbatch` requests one L40S, 32 GiB host memory, and four hours. It runs the backend, audits the result bundle, and executes the notebook.
+The supplied online and offline Slurm scripts each request one L40S, 32 GiB
+host memory, and 12 hours. Each trains into a staging directory, audits the
+complete result bundle, atomically replaces its prior result directory only
+after the audit passes, and then executes the corresponding notebook.

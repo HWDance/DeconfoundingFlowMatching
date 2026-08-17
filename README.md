@@ -290,7 +290,13 @@ Apache License 2.0. See [`LICENSE`](LICENSE).
 
 The repository also includes a heavier **ColorMNIST generator-correction demo** in `examples/cmnist/`. It bundles the exact original MNIST `t10k` UByte files and the same foreground-color DGP used by the research experiments (digits `(1,6)`, `tau=0.08`, `k=10`, black background, and the original red/blue map). No torchvision download or sklearn substitute is used.
 
-The backend constructs a fixed labeled dataset with **10,000 grayscale shape draws × two independent `X|A` color draws = 20,000 observations**. `pi_hat(A|X)` and the conditional outcome nuisance are estimated from those observations. The study reruns independent-coupling DeconfoundingFM and OT-DeconfoundingFM; both use a generator-base nuisance and fresh target bases from the frozen biased source-generator stand-in.
+The backend constructs a fixed labeled dataset of **20,000 independently
+generated observational rows**: every row independently samples `X`, then
+`A|X`, then an arm-specific digit shape with replacement. `pi_hat(A|X)` and the
+conditional outcome nuisance are estimated from those observations. The study
+reruns independent-coupling DeconfoundingFM and OT-DeconfoundingFM with batch
+size 128, Gaussian base-noise standard deviation `0.1`, 100,000 nuisance and
+target updates, and target plug-in reservoir refreshes every 10,000 updates.
 
 The intended workflow is:
 
@@ -302,4 +308,4 @@ jupyter notebook examples/cmnist/demo.ipynb
 `run.py` performs the heavy GPU training and writes a self-contained results bundle; `demo.ipynb` only loads that bundle and visualizes it. See `examples/cmnist/RUN.md` for an unattended Codex/cluster recipe. The committed default bundle is an exact-DGP preview only, with no fabricated trained-model metrics.
 
 
-For the CMNIST backend demo, the runner writes SW2, optional FID, color-distribution diagnostics, and trajectory diagnostics. The reported path energies are normalized per outcome dimension: `bar_E_v = (1/d) int ||v_t(Y_t)||^2 dt` and `bar_E_vdot = (1/d) int ||d/dt v_t(Y_t)||^2 dt`.
+For the CMNIST backend demo, the runner writes SW2, color-distribution diagnostics, and trajectory diagnostics. The reported path energies are normalized per outcome dimension: `bar_E_v = (1/d) int ||v_t(Y_t)||^2 dt` and `bar_E_vdot = (1/d) int ||d/dt v_t(Y_t)||^2 dt`.

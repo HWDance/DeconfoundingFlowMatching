@@ -4,31 +4,18 @@
   "models": {
     "decfm": {
       "variant": "decfm",
-      "final_step": 20000,
+      "final_step": 100000,
       "checkpoints": {
-        "250": "models/decfm/step_000250.pt",
-        "500": "models/decfm/step_000500.pt",
-        "1000": "models/decfm/step_001000.pt",
-        "2000": "models/decfm/step_002000.pt",
-        "5000": "models/decfm/step_005000.pt",
-        "10000": "models/decfm/step_010000.pt",
-        "15000": "models/decfm/step_015000.pt",
-        "20000": "models/decfm/step_020000.pt"
+        "100000": "models/decfm/step_100000.pt"
       }
     },
     "ot": {
       "variant": "ot",
-      "final_step": 20000,
+      "final_step": 100000,
       "checkpoints": {
-        "250": "models/ot/step_000250.pt",
-        "500": "models/ot/step_000500.pt",
-        "1000": "models/ot/step_001000.pt",
-        "2000": "models/ot/step_002000.pt",
-        "5000": "models/ot/step_005000.pt",
-        "10000": "models/ot/step_010000.pt",
-        "15000": "models/ot/step_015000.pt",
-        "20000": "models/ot/step_020000.pt"
+        "100000": "models/ot/step_100000.pt"
       }
     }
-  }
+  },
+  "artifact_policy": "final_only"
 }

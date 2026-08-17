@@ -30,7 +30,10 @@ class GeneratorConditionalFlowFM(ConditionalFlowFM):
         y = self.source_generator.sample(int(a), int(n), device=device)
         if not isinstance(y, torch.Tensor):
             y = torch.as_tensor(y, dtype=torch.float32, device=device)
-        return y.to(device=device, dtype=next(self.parameters()).dtype)
+        y = y.to(device=device, dtype=next(self.parameters()).dtype)
+        if float(self.cfg.base_noise_std) > 0:
+            y = y + float(self.cfg.base_noise_std) * torch.randn_like(y)
+        return y
 
     def fit(self, X, A, Y, batch_size: Optional[int]=None, epochs: Optional[int]=None, lr: Optional[float]=None, verbose: bool=True):
         batch_size = self.cfg.batch_size if batch_size is None else int(batch_size)
@@ -202,7 +205,13 @@ class GeneratorDeconfoundingFlow(DeconfoundingFlow):
                     self.checkpoint_state_dicts_[current_step] = {k: v.detach().cpu().clone() for k,v in self.velocity.state_dict().items()}
                 if verbose and (step == 0 or (step + 1) % 1000 == 0 or step + 1 == n_steps):
                     print(f'DeconfoundingFM iteration {step + 1}/{n_steps} | loss={loss_value:.6f}')
-                if self.cfg.update_plugin_reservoir and step > 0 and step % int(self.cfg.plugin_reservoir_update_frequency) == 0:
+                if (
+                    self.cfg.update_plugin_reservoir
+                    and current_step < n_steps
+                    and current_step % int(self.cfg.plugin_reservoir_update_frequency) == 0
+                ):
+                    if verbose:
+                        print(f"Refreshing plug-in reservoir after iteration {current_step}.")
                     self.set_plugin_samples(X, A)
             self.training_steps_ = n_steps
         else:

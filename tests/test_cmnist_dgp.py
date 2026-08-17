@@ -16,7 +16,32 @@ from deconfoundingfm.experimental import (
     recover_color_values,
     save_cmnist_correction_checkpoint,
 )
+from deconfoundingfm.experimental.cmnist import (
+    pack_display_samples,
+    pack_display_trajectories,
+    unpack_display_trajectories,
+)
 from deconfoundingfm.nn.velocity import UNet
+
+
+def test_display_artifact_compaction_preserves_shapes_and_diagnostics():
+    images = torch.tensor([-0.1, 0.5, 1.1]).view(1, 3, 1, 1)
+    packed_samples = pack_display_samples({"grid": images})
+    assert packed_samples["grid"].dtype == torch.uint8
+    assert tuple(packed_samples["grid"].shape) == tuple(images.shape)
+
+    score = torch.tensor([0.25])
+    packed = pack_display_trajectories(
+        {"decfm": {"arm0": {"top": {"trajectory": images, "score": score}}}}
+    )
+    assert packed["decfm"]["arm0"]["top"]["trajectory"].dtype == torch.uint8
+    assert packed["decfm"]["arm0"]["top"]["score"] is score
+
+    restored = unpack_display_trajectories(packed)
+    trajectory = restored["decfm"]["arm0"]["top"]["trajectory"]
+    assert trajectory.dtype == torch.float32
+    assert torch.allclose(trajectory, images.clamp(0, 1), atol=1.0 / 255.0)
+    assert restored["decfm"]["arm0"]["top"]["score"] is score
 
 
 def test_packaged_original_t10k_idx_files_are_used():
@@ -63,6 +88,20 @@ def test_two_color_population_has_requested_pair_structure():
     assert ((0.0 <= pop["X"]) & (pop["X"] <= 1.0)).all()
 
 
+def test_iid_observational_population_is_deterministic_and_rowwise():
+    dgp = ColorMNISTDGP(CMNISTConfig(), device="cpu")
+    first = dgp.make_iid_observational_population(37, seed=19)
+    second = dgp.recreate_observational_population(
+        design="iid_observational", n=37, seed=19
+    )
+    assert first["meta"]["construction"] == "iid_observational"
+    assert first["X"].shape == (37, 1)
+    assert first["A"].shape == (37, 1)
+    assert first["Y"].shape == (37, 3, 28, 28)
+    for key in ("X", "A", "Y"):
+        assert torch.equal(first[key], second[key])
+
+
 def test_exact_source_generator_draws_correct_arm_conditioned_colors():
     dgp = ColorMNISTDGP(CMNISTConfig(), device="cpu")
     source = ExactColorMNISTSourceGenerator(dgp)
@@ -83,14 +122,22 @@ def test_cmnist_runner_estimates_propensity_not_oracle():
     assert "OracleSigmoidPropensity" not in text
 
 
-def test_cmnist_runner_saves_portable_checkpoint_series_without_gaussian():
-    runner = Path(__file__).resolve().parents[1] / "examples" / "cmnist" / "run.py"
-    text = runner.read_text()
-    assert "save_model_checkpoints" in text
-    assert '"path_kind": "relative_to_result_directory"' in text
-    assert "default=5_000" in text
-    assert "default=512" in text
-    assert "gaussian" not in text.lower()
+def test_cmnist_runners_use_requested_full_iid_noise_refresh_defaults():
+    root = Path(__file__).resolve().parents[1] / "examples" / "cmnist"
+    for runner_name in ("run.py", "run_offline.py"):
+        text = (root / runner_name).read_text()
+        assert "save_model_checkpoints" in text
+        assert '"path_kind": "relative_to_result_directory"' in text
+        assert 'default=20_000' in text
+        assert 'default=100_000' in text
+        assert 'default=0.1' in text
+        assert 'default=10_000' in text
+        assert "make_iid_observational_population" in text
+        assert "update_plugin_reservoir=True" in text
+        assert "default=5_000" in text
+        assert "default=512" in text
+
+
 
 
 def test_recover_color_values_returns_one_ratio_per_image():
@@ -150,8 +197,15 @@ def test_offline_runner_uses_fixed_observational_bases_only():
     assert "GeneratorConditionalFlowFM" not in text
     assert "GeneratorDeconfoundingFlow" not in text
     assert 'base_mode="observational_empirical"' in text
-    assert '"nuisance_base": "fixed_observational_Y_stratified_by_A"' in text
-    assert '"target_base": "fixed_observational_Y_stratified_by_A"' in text
+    assert (
+        '"nuisance_base": '
+        '"fixed_observational_Y_stratified_by_A_plus_gaussian_noise"'
+    ) in text
+    assert (
+        '"target_base": '
+        '"fixed_observational_Y_stratified_by_A_plus_gaussian_noise"'
+    ) in text
+    assert 'make_iid_observational_population' in text
 
 
 def test_offline_checkpoint_reconstructs_empirical_arm_bases(tmp_path):
@@ -165,22 +219,40 @@ def test_offline_checkpoint_reconstructs_empirical_arm_bases(tmp_path):
         step=1,
         ode_steps=1,
         unet_c=2,
-        target_config={"ode_steps": 1, "use_ot": True},
+        target_config={
+            "ode_steps": 1,
+            "use_ot": True,
+            "base_noise_std": 0.1,
+            "update_plugin_reservoir": True,
+            "plugin_reservoir_update_frequency": 10_000,
+        },
         dgp_config=dgp_cfg,
         observational_seed=13,
         base_mode="observational_empirical",
+        observational_design="iid_observational",
+        observational_n=16,
     )
     payload = torch.load(path, map_location="cpu", weights_only=True)
     assert payload["kind"] == "cmnist_correction"
     assert payload["base_mode"] == "observational_empirical"
     assert payload["source_generator"] is None
+    assert payload["observational_design"] == "iid_observational"
+    assert payload["observational_n"] == 16
     assert "cached_base_samples" not in payload
 
     sampler = load_cmnist_correction_checkpoint(path, device="cpu")
+    assert sampler.base_noise_std == 0.1
     population = sampler.recreate_observational_population(device="cpu")
+    expected = ColorMNISTDGP(dgp_cfg, device="cpu").make_iid_observational_population(
+        16, seed=13
+    )
+    for key in ("X", "A", "Y"):
+        assert torch.equal(population[key], expected[key])
     treatment = population["A"].reshape(-1).long()
     for arm in (0, 1):
-        samples = sampler.sample_base(arm, 3)
+        exact_samples = sampler.base_sampler.sample(arm, 3, device="cpu")
         arm_base = population["Y"][treatment == arm]
-        for sample in samples:
+        for sample in exact_samples:
             assert (arm_base == sample).flatten(1).all(dim=1).any()
+        noised_samples = sampler.sample_base(arm, 3)
+        assert not torch.equal(noised_samples, exact_samples)

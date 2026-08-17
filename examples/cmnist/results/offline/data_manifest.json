@@ -1,5 +1,6 @@
 {
-  "reconstruction": "ColorMNISTDGP(CMNISTConfig(**dgp_config)).make_observational_population(seed=observational_seed)",
+  "reconstruction": "ColorMNISTDGP(CMNISTConfig(**dgp_config)).make_iid_observational_population(observational_n, seed=observational_seed)",
+  "observational_design": "iid_observational",
   "observational_seed": 0,
   "dgp_config": {
     "digits": [
@@ -11,14 +12,13 @@
     "propensity_w": 5.0,
     "tau": 0.08,
     "k": 10.0,
-    "fg_alpha": 0.0,
-    "n_bw_shapes": 10000,
-    "color_draws_per_shape": 2
+    "fg_alpha": 0.0
   },
   "observational_n": 20000,
   "direct_observational_tensor_saved": false,
-  "base_source": "fixed_observational_Y_stratified_by_A",
-  "base_reconstruction": "Reconstruct the population, then use Y[A == arm].",
+  "base_source": "fixed_observational_Y_stratified_by_A_plus_gaussian_noise",
+  "base_reconstruction": "Reconstruct iid population, use Y[A == arm], then add configured Gaussian noise.",
   "empirical_base_reconstructable": true,
-  "fresh_generator_base_used": false
+  "fresh_generator_base_used": false,
+  "display_artifact_encoding": "uint8_rgb_scaled_by_255"
 }

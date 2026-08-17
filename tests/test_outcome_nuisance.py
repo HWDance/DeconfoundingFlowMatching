@@ -1,5 +1,6 @@
 import torch
 
+from deconfoundingfm.experimental import GeneratorConditionalFlowFM
 from deconfoundingfm.nuisance import ConditionalFlowFM, ConditionalFlowFMConfig
 from conftest import image_data, vector_data
 
@@ -56,3 +57,24 @@ def test_gaussian_conditional_nuisance_exact_steps_are_generator_free():
     assert model._base0.numel() == model._base1.numel() == 0
     assert not hasattr(model, "source_generator")
     assert torch.isfinite(model.sample_conditional(X[:2], A[:2], 1)).all()
+
+
+
+def test_generator_conditional_nuisance_applies_configured_base_noise():
+    class ZeroSource:
+        def sample(self, a, n, device=None):
+            return torch.zeros(int(n), 2, device=device)
+
+    cfg = ConditionalFlowFMConfig(
+        dim_y=2,
+        dim_x=1,
+        hidden=4,
+        layers=1,
+        base_kind="empirical",
+        base_noise_std=0.1,
+    )
+    model = GeneratorConditionalFlowFM(cfg, ZeroSource(), device="cpu")
+    torch.manual_seed(5)
+    base = model.sample_base(0, 256)
+    assert base.shape == (256, 2)
+    assert 0.07 < float(base.std()) < 0.13

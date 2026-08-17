@@ -21,7 +21,7 @@ from deconfoundingfm.experimental import (
 )
 
 EXPECTED_METHODS = {"decfm", "ot"}
-EXPECTED_STEPS = {250, 500, 1000, 2000, 5000, 10000, 15000, 20000}
+EXPECTED_STEPS = {1000, 2500, 5000, 10000, 20000, 50000, 75000, 100000}
 REQUIRED_FILES = {
     "config.json",
     "metrics.json",
@@ -68,6 +68,9 @@ def audit_result_directory(
         raise AssertionError("Checkpoint paths are not portable result-relative paths.")
     if set(manifest["models"]) != EXPECTED_METHODS:
         raise AssertionError(f"Unexpected checkpoint methods: {sorted(manifest['models'])}")
+    artifact_policy = manifest.get("artifact_policy", "all_checkpoints")
+    if artifact_policy not in {"all_checkpoints", "final_only"}:
+        raise AssertionError(f"Unknown checkpoint artifact policy: {artifact_policy!r}")
     if data_manifest.get("direct_observational_tensor_saved") is not False:
         raise AssertionError("Observational tensors should be reconstructed, not bundled.")
     study_mode = config.get("study_mode", "online_generator")
@@ -81,10 +84,13 @@ def audit_result_directory(
             raise AssertionError("Offline empirical bases are not declared reconstructable.")
         if data_manifest.get("fresh_generator_base_used") is not False:
             raise AssertionError("Offline result incorrectly declares fresh generator use.")
-        if config.get("nuisance_base") != "fixed_observational_Y_stratified_by_A":
-            raise AssertionError("Offline nuisance base is not the fixed observed Y.")
-        if config.get("target_base") != "fixed_observational_Y_stratified_by_A":
-            raise AssertionError("Offline target base is not the fixed observed Y.")
+        expected_offline_base = (
+            "fixed_observational_Y_stratified_by_A_plus_gaussian_noise"
+        )
+        if config.get("nuisance_base") != expected_offline_base:
+            raise AssertionError("Offline nuisance base is not the noised fixed observed Y.")
+        if config.get("target_base") != expected_offline_base:
+            raise AssertionError("Offline target base is not the noised fixed observed Y.")
     elif data_manifest.get("fresh_base_samples_available") is not True:
         raise AssertionError("Fresh generator bases are not declared reconstructable.")
 
@@ -93,6 +99,27 @@ def audit_result_directory(
         raise AssertionError("Final metric sample count disagrees with the run config.")
     if require_full_defaults and expected_eval_n != 5000:
         raise AssertionError(f"Expected 5,000 final samples per arm, got {expected_eval_n}.")
+    if require_full_defaults:
+        expected_values = {
+            "observational_n": 20_000,
+            "batch_size": 128,
+            "nuisance_steps": 100_000,
+            "target_steps": 100_000,
+            "plugin_reservoir_update_frequency": 10_000,
+        }
+        for key, expected in expected_values.items():
+            if int(config.get(key, -1)) != expected:
+                raise AssertionError(
+                    f"Expected {key}={expected}, got {config.get(key)!r}."
+                )
+        if config.get("observational_design") != "iid_observational":
+            raise AssertionError("Full run is not based on 20,000 iid observations.")
+        if abs(float(config.get("base_noise_std", -1.0)) - 0.1) > 1e-12:
+            raise AssertionError("Full run base_noise_std is not 0.1.")
+        if config.get("update_plugin_reservoir") is not True:
+            raise AssertionError("Full run does not refresh the plug-in reservoir.")
+        if data_manifest.get("observational_design") != "iid_observational":
+            raise AssertionError("Data manifest does not declare iid observations.")
     if require_full_defaults and int(config["trajectory_n"]) != 512:
         raise AssertionError("Expected 512 trajectory candidates per arm.")
     if require_full_defaults and set(map(int, config["checkpoints"])) != EXPECTED_STEPS:
@@ -105,10 +132,6 @@ def audit_result_directory(
             raise AssertionError("Checkpoint convergence does not share its truth set.")
         if not convergence.get("shared_source_bases_across_methods_and_steps"):
             raise AssertionError("Checkpoint convergence does not share generator bases.")
-    if not bool(config["skip_fid"]):
-        for key in ("source_fid", "decfm_fid", "ot_fid"):
-            if key not in metrics or not torch.isfinite(torch.tensor(metrics[key])):
-                raise AssertionError(f"Missing or non-finite metric: {key}")
 
     checkpoint_count = 0
     checkpoint_bytes = 0
@@ -116,7 +139,12 @@ def audit_result_directory(
         checkpoint_steps = {int(step) for step in entry["checkpoints"]}
         if int(entry["final_step"]) not in checkpoint_steps:
             raise AssertionError(f"{method} final checkpoint is absent from its series.")
-        if require_full_defaults and checkpoint_steps != EXPECTED_STEPS:
+        if artifact_policy == "final_only":
+            if checkpoint_steps != {int(entry["final_step"])}:
+                raise AssertionError(
+                    f"{method} final-only bundle contains extra checkpoints: {checkpoint_steps}"
+                )
+        elif require_full_defaults and checkpoint_steps != EXPECTED_STEPS:
             raise AssertionError(f"{method} checkpoint schedule is incomplete: {checkpoint_steps}")
         for step_text, relative in entry["checkpoints"].items():
             if Path(relative).is_absolute():
@@ -133,6 +161,18 @@ def audit_result_directory(
             )
             if payload.get("base_mode", "source_generator") != expected_base_mode:
                 raise AssertionError(f"Wrong checkpoint base mode: {checkpoint_path}")
+            if require_full_defaults:
+                if payload.get("observational_design") != "iid_observational":
+                    raise AssertionError(f"Wrong observational design: {checkpoint_path}")
+                if int(payload.get("observational_n", -1)) != 20_000:
+                    raise AssertionError(f"Wrong observational size: {checkpoint_path}")
+                target_cfg = payload.get("target_config", {})
+                if abs(float(target_cfg.get("base_noise_std", -1.0)) - 0.1) > 1e-12:
+                    raise AssertionError(f"Wrong checkpoint base noise: {checkpoint_path}")
+                if target_cfg.get("update_plugin_reservoir") is not True:
+                    raise AssertionError(f"Reservoir refresh disabled: {checkpoint_path}")
+                if int(target_cfg.get("plugin_reservoir_update_frequency", -1)) != 10_000:
+                    raise AssertionError(f"Wrong reservoir refresh frequency: {checkpoint_path}")
             if payload["variant"] != method or payload["step"] != int(step_text):
                 raise AssertionError(f"Checkpoint metadata mismatch: {checkpoint_path}")
             if set(payload) & {
@@ -204,6 +244,7 @@ def audit_result_directory(
         "checkpoint_base_mode": (
             "observational_empirical" if is_offline else "source_generator"
         ),
+        "checkpoint_artifact_policy": artifact_policy,
         "fresh_inference": "passed",
         "artifact_audit": "passed",
     }

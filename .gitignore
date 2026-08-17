@@ -7,3 +7,8 @@ __pycache__/
 build/
 dist/
 .ipynb_checkpoints/
+
+# Local experiment logs and redundant CMNIST checkpoint series.
+logs/
+examples/cmnist/results/default/models/**/*.pt
+examples/cmnist/results/offline/models/**/*.pt

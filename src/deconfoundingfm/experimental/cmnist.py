@@ -5,7 +5,6 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import torch
-import torch.nn.functional as F
 
 from ..datasets.mnist.mnist_colour import (
     BG_BLACK,
@@ -92,6 +91,37 @@ class ColorMNISTDGP:
         return x.view(-1, 1).float(), a.view(-1, 1).float(), y.float()
 
     @torch.no_grad()
+    def make_iid_observational_population(self, n: int, *, seed: int = 0):
+        """Fixed iid observational dataset with independently generated rows."""
+        x, a, y = self.sample_observational(int(n), seed=int(seed))
+        return {
+            "X": x,
+            "A": a,
+            "Y": y,
+            "meta": {
+                "construction": "iid_observational",
+                "n_observations": int(n),
+                "seed": int(seed),
+            },
+        }
+
+    @torch.no_grad()
+    def recreate_observational_population(
+        self,
+        *,
+        design: str,
+        seed: int,
+        n: int | None = None,
+    ):
+        if design == "paired_two_color":
+            return self.make_observational_population(seed=int(seed))
+        if design == "iid_observational":
+            if n is None or int(n) < 1:
+                raise ValueError("iid_observational reconstruction requires n >= 1.")
+            return self.make_iid_observational_population(int(n), seed=int(seed))
+        raise ValueError(f"Unknown CMNIST observational design: {design!r}.")
+
+    @torch.no_grad()
     def sample_interventional(self, a: int, n: int):
         a = int(a)
         x = torch.empty(n, device=self.device).uniform_(self.config.x_low, self.config.x_high)
@@ -160,10 +190,23 @@ class FixedObservationalCMNISTBaseSampler:
     requested treatment arm.
     """
 
-    def __init__(self, dgp: ColorMNISTDGP, *, observational_seed: int):
+    def __init__(
+        self,
+        dgp: ColorMNISTDGP,
+        *,
+        observational_seed: int,
+        observational_design: str = "paired_two_color",
+        observational_n: int | None = None,
+    ):
         self.dgp = dgp
         self.observational_seed = int(observational_seed)
-        self.population = dgp.make_observational_population(seed=self.observational_seed)
+        self.observational_design = str(observational_design)
+        self.observational_n = None if observational_n is None else int(observational_n)
+        self.population = dgp.recreate_observational_population(
+            design=self.observational_design,
+            seed=self.observational_seed,
+            n=self.observational_n,
+        )
         treatment = self.population["A"].reshape(-1).long()
         outcomes = self.population["Y"]
         self._bases = {arm: outcomes[treatment == arm] for arm in (0, 1)}
@@ -188,7 +231,12 @@ class FixedObservationalCMNISTBaseSampler:
         if target_device == self.dgp.device:
             return self.population
         dgp = ColorMNISTDGP(self.dgp.config, device=target_device)
-        return dgp.make_observational_population(seed=self.observational_seed)
+        return dgp.recreate_observational_population(
+            design=self.observational_design,
+            seed=self.observational_seed,
+            n=self.observational_n,
+        )
+
 
 
 # Backward-compatible name for one release; prefer ExactColorMNISTSourceGenerator.
@@ -214,7 +262,10 @@ class CMNISTCorrectionSampler:
         variant: str,
         step: int,
         ode_steps: int,
+        base_noise_std: float,
         observational_seed: int,
+        observational_design: str,
+        observational_n: int | None,
         checkpoint_metadata: dict,
     ):
         self.velocity = velocity.eval()
@@ -224,7 +275,10 @@ class CMNISTCorrectionSampler:
         self.variant = str(variant)
         self.step = int(step)
         self.ode_steps = int(ode_steps)
+        self.base_noise_std = float(base_noise_std)
         self.observational_seed = int(observational_seed)
+        self.observational_design = str(observational_design)
+        self.observational_n = None if observational_n is None else int(observational_n)
         self.checkpoint_metadata = checkpoint_metadata
 
     @property
@@ -241,7 +295,10 @@ class CMNISTCorrectionSampler:
 
     @torch.no_grad()
     def sample_base(self, arm: int, n: int) -> torch.Tensor:
-        return self.base_sampler.sample(int(arm), int(n), device=self.device)
+        base = self.base_sampler.sample(int(arm), int(n), device=self.device)
+        if self.base_noise_std > 0:
+            base = base + self.base_noise_std * torch.randn_like(base)
+        return base
 
     @torch.no_grad()
     def transform(
@@ -304,7 +361,11 @@ class CMNISTCorrectionSampler:
             return self.base_sampler.recreate_observational_population(device=target_device)
         cfg = self.base_sampler.dgp.config
         dgp = ColorMNISTDGP(cfg, device=target_device)
-        return dgp.make_observational_population(seed=self.observational_seed)
+        return dgp.recreate_observational_population(
+            design=self.observational_design,
+            seed=self.observational_seed,
+            n=self.observational_n,
+        )
 
 
 def save_cmnist_correction_checkpoint(
@@ -319,12 +380,26 @@ def save_cmnist_correction_checkpoint(
     dgp_config: CMNISTConfig,
     observational_seed: int,
     base_mode: str = "source_generator",
+    observational_design: str = "paired_two_color",
+    observational_n: int | None = None,
 ):
     """Save a portable, sample-free correction checkpoint."""
     if base_mode not in {"source_generator", "observational_empirical"}:
         raise ValueError(
             "base_mode must be 'source_generator' or 'observational_empirical'."
         )
+    if observational_design not in {"paired_two_color", "iid_observational"}:
+        raise ValueError(
+            "observational_design must be 'paired_two_color' or 'iid_observational'."
+        )
+    if observational_design == "iid_observational" and (
+        observational_n is None or int(observational_n) < 1
+    ):
+        raise ValueError("iid_observational checkpoints require observational_n >= 1.")
+    dgp_payload = asdict(dgp_config)
+    if observational_design == "iid_observational":
+        dgp_payload.pop("n_bw_shapes", None)
+        dgp_payload.pop("color_draws_per_shape", None)
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -345,8 +420,12 @@ def save_cmnist_correction_checkpoint(
             "c": int(unet_c),
         },
         "target_config": dict(target_config),
-        "dgp_config": asdict(dgp_config),
+        "dgp_config": dgp_payload,
         "observational_seed": int(observational_seed),
+        "observational_design": str(observational_design),
+        "observational_n": (
+            None if observational_n is None else int(observational_n)
+        ),
         "base_mode": base_mode,
         "source_generator": (
             "ExactColorMNISTSourceGenerator"
@@ -354,8 +433,8 @@ def save_cmnist_correction_checkpoint(
             else None
         ),
         "base_reconstruction": (
-            "ColorMNISTDGP(CMNISTConfig(**dgp_config))"
-            ".make_observational_population(seed=observational_seed); "
+            "Reconstruct the configured observational population from "
+            "observational_design, observational_n, and observational_seed; "
             "use Y[A == arm]"
             if base_mode == "observational_empirical"
             else "ExactColorMNISTSourceGenerator"
@@ -383,7 +462,10 @@ def load_cmnist_correction_checkpoint(
     payload = torch.load(path, map_location=target_device, weights_only=True)
     if payload.get("format_version") != CHECKPOINT_FORMAT_VERSION:
         raise ValueError(f"Unsupported checkpoint format in {path}.")
-    if payload.get("kind") not in {"cmnist_generator_correction", "cmnist_correction"}:
+    if payload.get("kind") not in {
+        "cmnist_generator_correction",
+        "cmnist_correction",
+    }:
         raise ValueError(f"Not a CMNIST correction checkpoint: {path}.")
 
     velocity_cfg = payload["velocity_config"]
@@ -401,12 +483,16 @@ def load_cmnist_correction_checkpoint(
     dgp_values["digits"] = tuple(dgp_values["digits"])
     dgp = ColorMNISTDGP(CMNISTConfig(**dgp_values), device=target_device)
     base_mode = payload.get("base_mode", "source_generator")
+    observational_design = payload.get("observational_design", "paired_two_color")
+    observational_n = payload.get("observational_n")
     if base_mode == "source_generator":
         base_sampler = ExactColorMNISTSourceGenerator(dgp)
     elif base_mode == "observational_empirical":
         base_sampler = FixedObservationalCMNISTBaseSampler(
             dgp,
             observational_seed=payload["observational_seed"],
+            observational_design=observational_design,
+            observational_n=observational_n,
         )
     else:
         raise ValueError(f"Unsupported CMNIST checkpoint base mode: {base_mode!r}.")
@@ -417,7 +503,10 @@ def load_cmnist_correction_checkpoint(
         variant=payload["variant"],
         step=payload["step"],
         ode_steps=int(target_cfg.get("ode_steps", payload.get("ode_steps", 50))),
+        base_noise_std=float(target_cfg.get("base_noise_std", 0.0)),
         observational_seed=payload["observational_seed"],
+        observational_design=observational_design,
+        observational_n=observational_n,
         checkpoint_metadata=payload,
     )
 
@@ -454,12 +543,57 @@ def save_json(obj, path: Path):
     path.write_text(json.dumps(obj, indent=2))
 
 
+def _pack_display_tensor(images: torch.Tensor) -> torch.Tensor:
+    """Store display-only RGB tensors compactly without changing their shape."""
+    if not torch.is_floating_point(images):
+        return images.detach().cpu()
+    return (
+        images.detach().cpu().clamp(0.0, 1.0).mul(255.0).round().to(torch.uint8)
+    )
+
+
+def _unpack_display_tensor(images: torch.Tensor) -> torch.Tensor:
+    if images.dtype == torch.uint8:
+        return images.float().div(255.0)
+    return images
+
+
+def pack_display_samples(samples: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    """Quantize plotting-grid images; metrics are never computed from this artifact."""
+    return {key: _pack_display_tensor(value) for key, value in samples.items()}
+
+
+def _map_trajectory_images(value, *, pack: bool, parent_key: str | None = None):
+    if isinstance(value, dict):
+        return {
+            key: _map_trajectory_images(item, pack=pack, parent_key=key)
+            for key, item in value.items()
+        }
+    if parent_key == "trajectory" and torch.is_tensor(value):
+        return _pack_display_tensor(value) if pack else _unpack_display_tensor(value)
+    return value
+
+
+def pack_display_trajectories(trajectories: dict) -> dict:
+    """Quantize only trajectory image tensors, retaining exact scalar diagnostics."""
+    return _map_trajectory_images(trajectories, pack=True)
+
+
+def unpack_display_trajectories(trajectories: dict) -> dict:
+    return _map_trajectory_images(trajectories, pack=False)
+
+
 def load_result_bundle(path):
     path = Path(path)
     metrics = json.loads((path / "metrics.json").read_text())
     config = json.loads((path / "config.json").read_text())
     convergence = json.loads((path / "convergence.json").read_text())
-    samples = torch.load(path / "samples.pt", map_location="cpu", weights_only=True)
+    stored_samples = torch.load(
+        path / "samples.pt", map_location="cpu", weights_only=True
+    )
+    samples = {
+        key: _unpack_display_tensor(value) for key, value in stored_samples.items()
+    }
     manifest = json.loads((path / "run_manifest.json").read_text())
     bundle = {
         "metrics": metrics,
@@ -484,7 +618,10 @@ def load_result_bundle(path):
     }
     for key, filename in optional_tensors.items():
         if (path / filename).exists():
-            bundle[key] = torch.load(path / filename, map_location="cpu", weights_only=True)
+            value = torch.load(path / filename, map_location="cpu", weights_only=True)
+            bundle[key] = (
+                unpack_display_trajectories(value) if key == "trajectories" else value
+            )
     return bundle
 
 
@@ -552,84 +689,3 @@ def color_distribution_diagnostics(samples_by_arm: dict[int, torch.Tensor]) -> d
         "n_images_arm0": len(values0),
         "n_images_arm1": len(values1),
     }
-
-
-def make_inception_feature_extractor(*, device="cpu"):
-    from torchvision.models import Inception_V3_Weights, inception_v3
-
-    model = inception_v3(weights=Inception_V3_Weights.DEFAULT, transform_input=False)
-    model.fc = torch.nn.Identity()
-    model.eval().to(device)
-    return model
-
-
-@torch.no_grad()
-def inception_features(
-    images: torch.Tensor,
-    model,
-    *,
-    batch_size: int = 64,
-    device="cpu",
-) -> torch.Tensor:
-    """ImageNet-normalized Inception-v3 penultimate-layer features."""
-    images = images.detach().float()
-    feats = []
-    device = torch.device(device)
-    for start in range(0, len(images), batch_size):
-        x = images[start : start + batch_size].to(device)
-        x = F.interpolate(x, size=(299, 299), mode="bilinear", align_corners=False)
-        x = x.clamp(0.0, 1.0)
-        mean = x.new_tensor((0.485, 0.456, 0.406)).view(1, 3, 1, 1)
-        std = x.new_tensor((0.229, 0.224, 0.225)).view(1, 3, 1, 1)
-        x = (x - mean) / std
-        f = model(x)
-        if isinstance(f, tuple):
-            f = f[0]
-        feats.append(f.detach().cpu())
-    return torch.cat(feats, dim=0)
-
-
-def _cov(feats: torch.Tensor) -> torch.Tensor:
-    x = feats.float()
-    x = x - x.mean(dim=0, keepdim=True)
-    denom = max(len(x) - 1, 1)
-    return (x.T @ x) / denom
-
-
-def _symmetric_matrix_sqrt(matrix: torch.Tensor) -> torch.Tensor:
-    eigenvalues, eigenvectors = torch.linalg.eigh(matrix)
-    eigenvalues = eigenvalues.clamp_min(0)
-    return (eigenvectors * eigenvalues.sqrt().unsqueeze(0)) @ eigenvectors.T
-
-
-def prepare_fid_reference(real_feats: torch.Tensor) -> dict[str, torch.Tensor]:
-    """Cache real-distribution statistics shared by several FID comparisons."""
-    mean = real_feats.float().mean(dim=0)
-    covariance = _cov(real_feats)
-    return {
-        "mean": mean,
-        "covariance": covariance,
-        "covariance_sqrt": _symmetric_matrix_sqrt(covariance),
-    }
-
-
-def fid_from_reference(
-    reference: dict[str, torch.Tensor],
-    fake_feats: torch.Tensor,
-) -> float:
-    """FID against cached real statistics without repeating their eigendecomposition."""
-    mean1 = reference["mean"]
-    covariance1 = reference["covariance"]
-    covariance1_sqrt = reference["covariance_sqrt"]
-    mean2 = fake_feats.float().mean(dim=0)
-    covariance2 = _cov(fake_feats)
-    product = covariance1_sqrt @ covariance2 @ covariance1_sqrt
-    trace_sqrt_product = torch.linalg.eigvalsh(product).clamp_min(0).sqrt().sum()
-    mean_term = (mean1 - mean2).square().sum()
-    trace_term = torch.trace(covariance1) + torch.trace(covariance2) - 2.0 * trace_sqrt_product
-    return max(float((mean_term + trace_term).cpu()), 0.0)
-
-
-def fid_from_features(real_feats: torch.Tensor, fake_feats: torch.Tensor) -> float:
-    """Convenience wrapper for one FID comparison."""
-    return fid_from_reference(prepare_fid_reference(real_feats), fake_feats)
