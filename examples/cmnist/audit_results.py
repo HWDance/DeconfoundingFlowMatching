@@ -21,7 +21,20 @@ from deconfoundingfm.experimental import (
 )
 
 EXPECTED_METHODS = {"decfm", "ot"}
-EXPECTED_STEPS = {1000, 2500, 5000, 10000, 20000, 50000, 75000, 100000}
+EXPECTED_STEPS = {
+    1000,
+    2500,
+    5000,
+    10000,
+    20000,
+    50000,
+    75000,
+    100000,
+    125000,
+    150000,
+    175000,
+    200000,
+}
 REQUIRED_FILES = {
     "config.json",
     "metrics.json",
@@ -69,7 +82,7 @@ def audit_result_directory(
     if set(manifest["models"]) != EXPECTED_METHODS:
         raise AssertionError(f"Unexpected checkpoint methods: {sorted(manifest['models'])}")
     artifact_policy = manifest.get("artifact_policy", "all_checkpoints")
-    if artifact_policy not in {"all_checkpoints", "final_only"}:
+    if artifact_policy not in {"all_checkpoints", "final_only", "best_and_final"}:
         raise AssertionError(f"Unknown checkpoint artifact policy: {artifact_policy!r}")
     if data_manifest.get("direct_observational_tensor_saved") is not False:
         raise AssertionError("Observational tensors should be reconstructed, not bundled.")
@@ -104,7 +117,7 @@ def audit_result_directory(
             "observational_n": 20_000,
             "batch_size": 128,
             "nuisance_steps": 100_000,
-            "target_steps": 100_000,
+            "target_steps": 200_000,
             "plugin_reservoir_update_frequency": 10_000,
         }
         for key, expected in expected_values.items():
@@ -144,6 +157,14 @@ def audit_result_directory(
                 raise AssertionError(
                     f"{method} final-only bundle contains extra checkpoints: {checkpoint_steps}"
                 )
+        elif artifact_policy == "best_and_final":
+            selected_steps = {int(entry["best_step"]), int(entry["final_step"])}
+            if checkpoint_steps != selected_steps:
+                raise AssertionError(
+                    f"{method} best/final checkpoint set is wrong: {checkpoint_steps}"
+                )
+            if entry.get("selection_metric") != "validation_sw2":
+                raise AssertionError(f"{method} selection metric is not validation SW2.")
         elif require_full_defaults and checkpoint_steps != EXPECTED_STEPS:
             raise AssertionError(f"{method} checkpoint schedule is incomplete: {checkpoint_steps}")
         for step_text, relative in entry["checkpoints"].items():
@@ -200,8 +221,40 @@ def audit_result_directory(
             if not torch.isfinite(corrected).all():
                 raise AssertionError(f"Fresh {method}/arm{arm} inference is non-finite.")
 
+    if require_full_defaults:
+        if artifact_policy != "best_and_final":
+            raise AssertionError("Full 200k bundles must retain best and final checkpoints.")
+        selections = metrics.get("checkpoint_selection", {})
+        if set(selections) != EXPECTED_METHODS:
+            raise AssertionError("Missing best-versus-final checkpoint comparisons.")
+        if convergence.get("role") != "validation_checkpoint_selection":
+            raise AssertionError("Convergence artifact is not marked as validation selection.")
+        for method in EXPECTED_METHODS:
+            entry = manifest["models"][method]
+            comparison = selections[method]
+            if int(comparison["best_step"]) != int(entry["best_step"]):
+                raise AssertionError(f"{method} best step disagrees across artifacts.")
+            if int(comparison["final_step"]) != int(entry["final_step"]):
+                raise AssertionError(f"{method} final step disagrees across artifacts.")
+            if int(entry["final_step"]) != 200_000:
+                raise AssertionError(f"{method} final checkpoint is not at 200k.")
+            for key in (
+                "validation_best_sw2",
+                "validation_final_sw2",
+                "test_best_sw2",
+                "test_final_sw2",
+                "test_delta_best_minus_final",
+            ):
+                if not torch.isfinite(torch.tensor(float(comparison[key]))):
+                    raise AssertionError(f"Non-finite {method} comparison metric: {key}")
+        if metrics.get("shared_test_bases_across_methods_and_checkpoints") is not True:
+            raise AssertionError("Best/final test comparison does not share base samples.")
+
     color_values = bundle["color_values"]
-    for method in ("source", "truth", "decfm", "ot"):
+    color_methods = ["source", "truth", "decfm", "ot"]
+    if artifact_policy == "best_and_final":
+        color_methods.extend(["decfm_best", "ot_best"])
+    for method in color_methods:
         for arm in (0, 1):
             values = color_values[method][f"arm{arm}"]
             if len(values) != expected_eval_n or not torch.isfinite(values).all():

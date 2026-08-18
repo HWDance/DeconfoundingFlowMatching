@@ -16,9 +16,9 @@
   },
   "observational_n": 20000,
   "direct_observational_tensor_saved": false,
+  "display_artifact_encoding": "uint8_rgb_scaled_by_255",
   "base_source": "fixed_observational_Y_stratified_by_A_plus_gaussian_noise",
   "base_reconstruction": "Reconstruct iid population, use Y[A == arm], then add configured Gaussian noise.",
   "empirical_base_reconstructable": true,
-  "fresh_generator_base_used": false,
-  "display_artifact_encoding": "uint8_rgb_scaled_by_255"
+  "fresh_generator_base_used": false
 }

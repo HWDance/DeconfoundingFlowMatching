@@ -1,21 +1,69 @@
 {
-  "source_sw2": 0.03179275244474411,
-  "decfm_sw2": 0.015057269018143415,
-  "ot_sw2": 0.009991360362619162,
+  "source_sw2": 0.031244353391230106,
+  "decfm_sw2": 0.010051119374111295,
+  "ot_sw2": 0.011208521202206612,
+  "decfm_best_sw2": 0.010051119374111295,
+  "ot_best_sw2": 0.010672911070287228,
   "source_sw2_by_arm": [
-    0.028951495885849,
-    0.03463400900363922
+    0.028440168127417564,
+    0.03404853865504265
   ],
   "decfm_sw2_by_arm": [
-    0.019890356808900833,
-    0.010224181227385998
+    0.00763538246974349,
+    0.0124668562784791
   ],
   "ot_sw2_by_arm": [
-    0.007483435794711113,
-    0.01249928493052721
+    0.008801175281405449,
+    0.013615867123007774
   ],
+  "decfm_best_sw2_by_arm": [
+    0.00763538246974349,
+    0.0124668562784791
+  ],
+  "ot_best_sw2_by_arm": [
+    0.007706302218139172,
+    0.013639519922435284
+  ],
+  "checkpoint_selection": {
+    "decfm": {
+      "best_step": 200000,
+      "final_step": 200000,
+      "validation_best_sw2": 0.013942482881247997,
+      "validation_final_sw2": 0.013942482881247997,
+      "test_best_sw2": 0.010051119374111295,
+      "test_final_sw2": 0.010051119374111295,
+      "test_best_sw2_by_arm": [
+        0.00763538246974349,
+        0.0124668562784791
+      ],
+      "test_final_sw2_by_arm": [
+        0.00763538246974349,
+        0.0124668562784791
+      ],
+      "test_delta_best_minus_final": 0.0
+    },
+    "ot": {
+      "best_step": 125000,
+      "final_step": 200000,
+      "validation_best_sw2": 0.013747913297265768,
+      "validation_final_sw2": 0.01457647467032075,
+      "test_best_sw2": 0.010672911070287228,
+      "test_final_sw2": 0.011208521202206612,
+      "test_best_sw2_by_arm": [
+        0.007706302218139172,
+        0.013639519922435284
+      ],
+      "test_final_sw2_by_arm": [
+        0.008801175281405449,
+        0.013615867123007774
+      ],
+      "test_delta_best_minus_final": -0.000535610131919384
+    }
+  },
   "evaluation_n_per_arm": 5000,
+  "evaluation_sample_seed": 8000,
   "sw2_projections": 256,
   "sw2_projection_seed": 1000,
-  "metric_note": "Sliced Wasserstein-2 on flattened RGB images; final value averages arms 0 and 1. Every method uses identical projection directions."
+  "shared_test_bases_across_methods_and_checkpoints": true,
+  "metric_note": "Sliced Wasserstein-2 on flattened RGB images. Best checkpoints are selected only on the fixed 512-per-arm validation set, then best and final states are compared on a separate shared 5,000-per-arm test set."
 }

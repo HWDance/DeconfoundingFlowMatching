@@ -16,7 +16,7 @@
   },
   "observational_n": 20000,
   "direct_observational_tensor_saved": false,
+  "display_artifact_encoding": "uint8_rgb_scaled_by_255",
   "source_generator": "ExactColorMNISTSourceGenerator",
-  "fresh_base_samples_available": true,
-  "display_artifact_encoding": "uint8_rgb_scaled_by_255"
+  "fresh_base_samples_available": true
 }

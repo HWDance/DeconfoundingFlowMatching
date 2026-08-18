@@ -126,10 +126,14 @@ def test_cmnist_runners_use_requested_full_iid_noise_refresh_defaults():
     root = Path(__file__).resolve().parents[1] / "examples" / "cmnist"
     for runner_name in ("run.py", "run_offline.py"):
         text = (root / runner_name).read_text()
-        assert "save_model_checkpoints" in text
+        assert "save_selected_model_checkpoints" in text
         assert '"path_kind": "relative_to_result_directory"' in text
+        assert '"artifact_policy": "best_and_final"' in text
         assert 'default=20_000' in text
         assert 'default=100_000' in text
+        assert 'default=200_000' in text
+        assert "best_steps" in text
+        assert "shared_test_bases_across_methods_and_checkpoints" in text
         assert 'default=0.1' in text
         assert 'default=10_000' in text
         assert "make_iid_observational_population" in text

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=cmnist-offline-100k
+#SBATCH --job-name=cmnist-offline-200k
 #SBATCH --account=gcnu-ac
 #SBATCH --partition=gpu_lowp
 #SBATCH --qos=normal
@@ -7,8 +7,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
 #SBATCH --time=12:00:00
-#SBATCH --output=logs/cmnist-offline-100k-%j.out
-#SBATCH --error=logs/cmnist-offline-100k-%j.err
+#SBATCH --output=logs/cmnist-offline-200k-%j.out
+#SBATCH --error=logs/cmnist-offline-200k-%j.err
 
 set -eo pipefail
 
@@ -18,7 +18,7 @@ FINAL_RESULT_DIR="${REPO_ROOT}/examples/cmnist/results/offline"
 STAGING_ROOT="${REPO_ROOT}/logs/cmnist-offline-refresh-${SLURM_JOB_ID}"
 RESULT_DIR="${STAGING_ROOT}/new-offline"
 BACKUP_DIR="${STAGING_ROOT}/previous-offline"
-GPU_LOG="${REPO_ROOT}/logs/cmnist-offline-100k-${SLURM_JOB_ID}-gpu.csv"
+GPU_LOG="${REPO_ROOT}/logs/cmnist-offline-200k-${SLURM_JOB_ID}-gpu.csv"
 
 source "${CONDA_ROOT}/etc/profile.d/conda.sh"
 conda activate deconfoundingfm

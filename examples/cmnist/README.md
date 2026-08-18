@@ -52,31 +52,28 @@ The observational population is not duplicated in the result bundle. Its complet
 
 ## Saved outputs
 
-The default run uses batch size 128, 100,000 nuisance updates, and 100,000
+The default run uses batch size 128, 100,000 nuisance updates, and 200,000
 target updates per method. The target plug-in reservoir is built before
 training and refreshed after every 10,000 completed target updates (through
-90,000). Target velocity checkpoints are saved at 1k, 2.5k, 5k, 10k, 20k,
-50k, 75k, and 100k updates under `models/{decfm,ot}/`. Each checkpoint contains
-only correction-flow weights and reconstruction metadata. It deliberately
-omits nuisance models, propensity fits, optimizer state, plug-in reservoirs,
-and cached base samples.
-
-Full local runs retain every scheduled checkpoint. To keep the repository
-pull lightweight, the committed demo bundles retain only the final Independent
-and OT checkpoints; the complete checkpoint convergence is preserved in
-`convergence.json`.
+190,000). Validation snapshots are taken at 1k, 2.5k, 5k, 10k, 20k, 50k, 75k,
+100k, 125k, 150k, 175k, and 200k. Each method retains only the checkpoint with
+the lowest fixed-validation SW2 and the final 200k checkpoint (one file if they
+coincide). These portable checkpoints contain correction-flow weights and
+reconstruction metadata, while omitting nuisance models, propensity fits,
+optimizer state, plug-in reservoirs, and cached base samples. Best and final
+states are compared on a separate shared 5,000-per-arm test draw.
 
 The result directory contains:
 
-- `metrics.json`: final per-arm and averaged SW2 values, using 5,000 fresh samples per arm.
+- `metrics.json`: best-versus-final per-arm and averaged SW2 values on a separate 5,000-sample test draw per arm.
 - `convergence.json`: checkpoint SW2 on one deterministic 512-sample truth/base batch per arm, including shared Gaussian base noise, across every method and checkpoint.
 - `color_values.pt` and `color_diagnostics.json`: one per-image foreground color value, `R/(R+B)`, and arm/uniform comparisons.
 - `trajectories.pt` and `trajectory_summary.json`: full trajectories for the top and bottom eight foreground-changing examples selected from one shared batch of 512 source images per arm. Display tensors use compact 8-bit RGB storage and are restored to floating point by the bundle loader.
 - `samples.pt`: compact 8-bit plotting grids only.
-- `model_manifest.json`: portable result-relative paths for the checkpoints included in the bundle.
+- `model_manifest.json`: validation-selected best and final steps with portable result-relative checkpoint paths.
 - `data_manifest.json`: deterministic observational-data reconstruction metadata.
 - `config.json` and `run_manifest.json`: exact run and environment metadata.
 
-SW2 uses the same 256 projection directions for source, independent, and OT comparisons.
+SW2 uses the same 256 projection directions and shared test bases for every best-versus-final method comparison.
 
-The notebook plots the final metrics, sample grids, checkpoint convergence, learned color densities, flow-change extremes, and selected trajectories. It also reloads a saved checkpoint and draws genuinely fresh endpoints and trajectories without loading any training-time sample store.
+The notebook compares validation-selected best and final metrics, sample grids, checkpoint convergence, learned color densities, flow-change extremes, and selected trajectories. It also reloads a saved checkpoint and draws genuinely fresh endpoints and trajectories without loading any training-time sample store.

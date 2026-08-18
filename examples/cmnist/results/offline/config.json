@@ -1,5 +1,5 @@
 {
-  "output": "/nfs/ghome/live/danceh/DeconfoundingFlowMatching/logs/cmnist-offline-refresh-3390795/new-offline",
+  "output": "/nfs/ghome/live/danceh/DeconfoundingFlowMatching/logs/cmnist-offline-refresh-3392097/new-offline",
   "device": "cuda",
   "seed": 0,
   "observational_n": 20000,
@@ -8,7 +8,7 @@
   "propensity_cv_folds": 5,
   "nuisance_steps": 100000,
   "nuisance_lr": 0.0001,
-  "target_steps": 100000,
+  "target_steps": 200000,
   "target_lr": 0.0001,
   "batch_size": 128,
   "unet_c": 32,
@@ -25,7 +25,11 @@
     20000,
     50000,
     75000,
-    100000
+    100000,
+    125000,
+    150000,
+    175000,
+    200000
   ],
   "eval_n": 5000,
   "checkpoint_eval_n": 512,

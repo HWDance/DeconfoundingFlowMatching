@@ -60,7 +60,7 @@ def build_parser():
     p.add_argument("--nuisance-lr", type=float, default=1e-4)
 
     # Target flows.
-    p.add_argument("--target-steps", type=int, default=100_000)
+    p.add_argument("--target-steps", type=int, default=200_000)
     p.add_argument("--target-lr", type=float, default=1e-4)
     p.add_argument("--batch-size", type=int, default=128)
     p.add_argument("--unet-c", type=int, default=32)
@@ -73,7 +73,20 @@ def build_parser():
         "--checkpoints",
         type=int,
         nargs="*",
-        default=[1000, 2500, 5000, 10000, 20000, 50000, 75000, 100000],
+        default=[
+            1000,
+            2500,
+            5000,
+            10000,
+            20000,
+            50000,
+            75000,
+            100000,
+            125000,
+            150000,
+            175000,
+            200000,
+        ],
     )
 
     # Evaluation.
@@ -435,20 +448,40 @@ def main():
     ot = make_target(use_ot=True)
     ot.fit(X, A, Y, verbose=True, checkpoint_steps=args.checkpoints)
 
-    # Save every requested correction state plus the final state. Payloads contain
-    # only velocity weights and reconstruction metadata--never plug-in/base samples.
-    def save_model_checkpoints(model, variant):
+    # Keep scheduled target states in memory for validation-based model selection.
+    # Only the selected best state and the final state are serialized.
+    def checkpoint_state(model, step):
+        step = int(step)
+        if step in model.checkpoint_state_dicts_:
+            return model.checkpoint_state_dicts_[step]
+        if step == int(model.training_steps_):
+            return model.velocity.state_dict()
+        raise KeyError(f"Missing checkpoint state at step {step}.")
+
+    def transform_at_step(model, step, bases_by_arm):
+        original = deepcopy(model.velocity.state_dict())
+        try:
+            model.velocity.load_state_dict(checkpoint_state(model, step))
+            return {
+                arm: transform_model_chunked(
+                    model,
+                    arm,
+                    bases_by_arm[arm],
+                    args.sample_chunk,
+                )
+                for arm in (0, 1)
+            }
+        finally:
+            model.velocity.load_state_dict(original)
+
+    def save_selected_model_checkpoints(model, variant, best_step):
         final_step = int(model.training_steps_)
-        states = dict(model.checkpoint_state_dicts_)
-        states[final_step] = {
-            key: value.detach().cpu().clone() for key, value in model.velocity.state_dict().items()
-        }
         entries = {}
-        for step in sorted(states):
-            relative_path = Path("models") / variant / f"step_{int(step):06d}.pt"
+        for step in sorted({int(best_step), final_step}):
+            relative_path = Path("models") / variant / f"step_{step:06d}.pt"
             save_cmnist_correction_checkpoint(
                 out / relative_path,
-                state_dict=states[step],
+                state_dict=checkpoint_state(model, step),
                 variant=variant,
                 step=step,
                 ode_steps=model.cfg.ode_steps,
@@ -459,73 +492,21 @@ def main():
                 observational_design="iid_observational",
                 observational_n=len(X),
             )
-            entries[str(int(step))] = relative_path.as_posix()
+            entries[str(step)] = relative_path.as_posix()
         return {
             "variant": variant,
+            "best_step": int(best_step),
             "final_step": final_step,
+            "selection_metric": "validation_sw2",
             "checkpoints": entries,
         }
 
-    model_manifest = {
-        "format_version": 1,
-        "path_kind": "relative_to_result_directory",
-        "artifact_policy": "all_checkpoints",
-        "models": {
-            "decfm": save_model_checkpoints(decfm, "decfm"),
-            "ot": save_model_checkpoints(ot, "ot"),
-        },
-    }
     decfm.drain_plugin_store()
     ot.drain_plugin_store()
 
     # ------------------------------------------------------------------
-    # 5. Fresh reference evaluation from the exact DGP.
+    # 5. Select checkpoints on one fixed validation set (512 per arm).
     # ------------------------------------------------------------------
-    truth = {}
-    source = {}
-    model_samples = {"decfm": {}, "ot": {}}
-    for arm in (0, 1):
-        _, _, truth_arm = dgp.sample_interventional(arm, args.eval_n)
-        truth[arm] = truth_arm.detach().cpu()
-        source[arm] = sample_source_chunked(source_generator, arm, args.eval_n, args.sample_chunk)
-        model_samples["decfm"][arm] = sample_model_chunked(
-            decfm, arm, args.eval_n, args.sample_chunk
-        )
-        model_samples["ot"][arm] = sample_model_chunked(ot, arm, args.eval_n, args.sample_chunk)
-
-    final_projection_seed = args.seed + 1000
-    source_sw2, source_arms = mean_arm_sw2(
-        source, truth, projections=args.sw2_projections, seed=final_projection_seed
-    )
-    decfm_sw2, decfm_arms = mean_arm_sw2(
-        model_samples["decfm"],
-        truth,
-        projections=args.sw2_projections,
-        seed=final_projection_seed,
-    )
-    ot_sw2, ot_arms = mean_arm_sw2(
-        model_samples["ot"],
-        truth,
-        projections=args.sw2_projections,
-        seed=final_projection_seed,
-    )
-    metrics = {
-        "source_sw2": source_sw2,
-        "decfm_sw2": decfm_sw2,
-        "ot_sw2": ot_sw2,
-        "source_sw2_by_arm": source_arms,
-        "decfm_sw2_by_arm": decfm_arms,
-        "ot_sw2_by_arm": ot_arms,
-        "evaluation_n_per_arm": int(args.eval_n),
-        "sw2_projections": int(args.sw2_projections),
-        "sw2_projection_seed": int(final_projection_seed),
-        "metric_note": "Sliced Wasserstein-2 on flattened RGB images; final value averages arms 0 and 1. Every method uses identical projection directions.",
-    }
-    print(json.dumps(metrics, indent=2))
-
-    # Checkpoint convergence uses one deterministic truth set and one shared source
-    # batch per arm. Reusing these bases across every method/step removes base-draw
-    # Monte Carlo noise from comparisons of the learned correction weights.
     checkpoint_sample_seed = args.seed + 7000
     torch.manual_seed(checkpoint_sample_seed)
     if torch.cuda.is_available():
@@ -551,7 +532,7 @@ def main():
     def checkpoint_curve(model):
         steps = sorted(model.checkpoint_state_dicts_.keys())
         original = deepcopy(model.velocity.state_dict())
-        vals = []
+        values = []
         try:
             for step in steps:
                 model.velocity.load_state_dict(model.checkpoint_state_dicts_[step])
@@ -570,19 +551,32 @@ def main():
                     projections=args.sw2_projections,
                     seed=checkpoint_projection_seed,
                 )
-                vals.append(value)
+                values.append(value)
         finally:
             model.velocity.load_state_dict(original)
-        return steps, vals
+        return steps, values
 
     steps_d, vals_d = checkpoint_curve(decfm)
     steps_o, vals_o = checkpoint_curve(ot)
     if steps_o != steps_d:
         raise RuntimeError("Target checkpoint steps do not match.")
+    expected_steps = sorted(set(map(int, args.checkpoints)))
+    if steps_d != expected_steps:
+        raise RuntimeError(
+            f"Expected checkpoint steps {expected_steps}, got {steps_d}."
+        )
+
+    curves = {"decfm": vals_d, "ot": vals_o}
+    best_steps = {
+        method: min(zip(values, steps_d))[1]
+        for method, values in curves.items()
+    }
     convergence = {
         "steps": steps_d,
         "decfm": vals_d,
         "ot": vals_o,
+        "best_step_by_method": best_steps,
+        "role": "validation_checkpoint_selection",
         "evaluation_n_per_arm": int(args.checkpoint_eval_n),
         "sw2_projections": int(args.sw2_projections),
         "projection_seed": int(checkpoint_projection_seed),
@@ -591,12 +585,133 @@ def main():
         "shared_source_bases_across_methods_and_steps": True,
     }
 
+    model_manifest = {
+        "format_version": 1,
+        "path_kind": "relative_to_result_directory",
+        "artifact_policy": "best_and_final",
+        "selection_split": "fixed_validation",
+        "selection_metric": "validation_sw2",
+        "models": {
+            "decfm": save_selected_model_checkpoints(
+                decfm, "decfm", best_steps["decfm"]
+            ),
+            "ot": save_selected_model_checkpoints(ot, "ot", best_steps["ot"]),
+        },
+    }
+
+    # ------------------------------------------------------------------
+    # 6. Compare selected and final states on a separate shared 5k test set.
+    # ------------------------------------------------------------------
+    final_evaluation_seed = args.seed + 8000
+    torch.manual_seed(final_evaluation_seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(final_evaluation_seed)
+    truth = {}
+    source = {}
+    evaluation_bases = {}
+    for arm in (0, 1):
+        _, _, truth_arm = dgp.sample_interventional(arm, args.eval_n)
+        truth[arm] = truth_arm.detach().cpu()
+        source[arm] = sample_source_chunked(
+            source_generator,
+            arm,
+            args.eval_n,
+            args.sample_chunk,
+        )
+        evaluation_bases[arm] = source[arm].clone()
+        if args.base_noise_std > 0:
+            evaluation_bases[arm] = evaluation_bases[arm] + (
+                args.base_noise_std * torch.randn_like(evaluation_bases[arm])
+            )
+
+    models = {"decfm": decfm, "ot": ot}
+    model_samples = {}
+    best_model_samples = {}
+    for method, model in models.items():
+        model_samples[method] = transform_at_step(
+            model,
+            int(model.training_steps_),
+            evaluation_bases,
+        )
+        best_model_samples[method] = transform_at_step(
+            model,
+            best_steps[method],
+            evaluation_bases,
+        )
+
+    final_projection_seed = args.seed + 1000
+    source_sw2, source_arms = mean_arm_sw2(
+        source,
+        truth,
+        projections=args.sw2_projections,
+        seed=final_projection_seed,
+    )
+    comparisons = {}
+    for method in ("decfm", "ot"):
+        final_sw2, final_arms = mean_arm_sw2(
+            model_samples[method],
+            truth,
+            projections=args.sw2_projections,
+            seed=final_projection_seed,
+        )
+        best_sw2, best_arms = mean_arm_sw2(
+            best_model_samples[method],
+            truth,
+            projections=args.sw2_projections,
+            seed=final_projection_seed,
+        )
+        validation_values = curves[method]
+        final_step = int(models[method].training_steps_)
+        comparisons[method] = {
+            "best_step": int(best_steps[method]),
+            "final_step": final_step,
+            "validation_best_sw2": float(
+                validation_values[steps_d.index(best_steps[method])]
+            ),
+            "validation_final_sw2": float(
+                validation_values[steps_d.index(final_step)]
+            ),
+            "test_best_sw2": best_sw2,
+            "test_final_sw2": final_sw2,
+            "test_best_sw2_by_arm": best_arms,
+            "test_final_sw2_by_arm": final_arms,
+            "test_delta_best_minus_final": best_sw2 - final_sw2,
+        }
+
+    metrics = {
+        "source_sw2": source_sw2,
+        "decfm_sw2": comparisons["decfm"]["test_final_sw2"],
+        "ot_sw2": comparisons["ot"]["test_final_sw2"],
+        "decfm_best_sw2": comparisons["decfm"]["test_best_sw2"],
+        "ot_best_sw2": comparisons["ot"]["test_best_sw2"],
+        "source_sw2_by_arm": source_arms,
+        "decfm_sw2_by_arm": comparisons["decfm"]["test_final_sw2_by_arm"],
+        "ot_sw2_by_arm": comparisons["ot"]["test_final_sw2_by_arm"],
+        "decfm_best_sw2_by_arm": comparisons["decfm"]["test_best_sw2_by_arm"],
+        "ot_best_sw2_by_arm": comparisons["ot"]["test_best_sw2_by_arm"],
+        "checkpoint_selection": comparisons,
+        "evaluation_n_per_arm": int(args.eval_n),
+        "evaluation_sample_seed": int(final_evaluation_seed),
+        "sw2_projections": int(args.sw2_projections),
+        "sw2_projection_seed": int(final_projection_seed),
+        "shared_test_bases_across_methods_and_checkpoints": True,
+        "metric_note": (
+            "Sliced Wasserstein-2 on flattened RGB images. Best checkpoints are "
+            f"selected only on the fixed {args.checkpoint_eval_n:,}-per-arm "
+            "validation set, then best and final states are compared on a separate "
+            f"shared {args.eval_n:,}-per-arm test set."
+        ),
+    }
+    print(json.dumps(metrics, indent=2))
+
     # Per-image R/(R+B) values approximate the paper's learned P(X(a)).
     color_sample_sets = {
         "source": source,
         "truth": truth,
         "decfm": model_samples["decfm"],
         "ot": model_samples["ot"],
+        "decfm_best": best_model_samples["decfm"],
+        "ot_best": best_model_samples["ot"],
     }
     color_values = {
         method: {f"arm{arm}": recover_color_values(samples_by_arm[arm]) for arm in (0, 1)}
@@ -655,6 +770,10 @@ def main():
         "decfm_a1": model_samples["decfm"][1][:64].clone(),
         "ot_a0": model_samples["ot"][0][:64].clone(),
         "ot_a1": model_samples["ot"][1][:64].clone(),
+        "decfm_best_a0": best_model_samples["decfm"][0][:64].clone(),
+        "decfm_best_a1": best_model_samples["decfm"][1][:64].clone(),
+        "ot_best_a0": best_model_samples["ot"][0][:64].clone(),
+        "ot_best_a1": best_model_samples["ot"][1][:64].clone(),
     }
 
     config_payload = vars(args).copy()

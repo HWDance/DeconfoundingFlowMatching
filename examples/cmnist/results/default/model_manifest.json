@@ -1,21 +1,28 @@
 {
   "format_version": 1,
   "path_kind": "relative_to_result_directory",
+  "artifact_policy": "best_and_final",
+  "selection_split": "fixed_validation",
+  "selection_metric": "validation_sw2",
   "models": {
     "decfm": {
       "variant": "decfm",
-      "final_step": 100000,
+      "best_step": 100000,
+      "final_step": 200000,
+      "selection_metric": "validation_sw2",
       "checkpoints": {
-        "100000": "models/decfm/step_100000.pt"
+        "100000": "models/decfm/step_100000.pt",
+        "200000": "models/decfm/step_200000.pt"
       }
     },
     "ot": {
       "variant": "ot",
-      "final_step": 100000,
+      "best_step": 200000,
+      "final_step": 200000,
+      "selection_metric": "validation_sw2",
       "checkpoints": {
-        "100000": "models/ot/step_100000.pt"
+        "200000": "models/ot/step_200000.pt"
       }
     }
-  },
-  "artifact_policy": "final_only"
+  }
 }

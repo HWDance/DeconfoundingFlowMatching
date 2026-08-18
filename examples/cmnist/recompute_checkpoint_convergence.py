@@ -60,6 +60,11 @@ def recompute(result_dir: Path, *, device: str) -> dict:
     result_dir = result_dir.resolve()
     config = json.loads((result_dir / "config.json").read_text())
     manifest = json.loads((result_dir / "model_manifest.json").read_text())
+    if manifest.get("artifact_policy", "all_checkpoints") != "all_checkpoints":
+        raise ValueError(
+            "Full convergence recomputation requires every scheduled checkpoint; "
+            "best/final-only bundles preserve the original curve in convergence.json."
+        )
     methods = ("decfm", "ot")
     if set(manifest["models"]) != set(methods):
         raise ValueError("Expected exactly the independent and OT checkpoint families.")

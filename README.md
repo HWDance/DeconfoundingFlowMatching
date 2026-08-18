@@ -295,8 +295,9 @@ generated observational rows**: every row independently samples `X`, then
 `A|X`, then an arm-specific digit shape with replacement. `pi_hat(A|X)` and the
 conditional outcome nuisance are estimated from those observations. The study
 reruns independent-coupling DeconfoundingFM and OT-DeconfoundingFM with batch
-size 128, Gaussian base-noise standard deviation `0.1`, 100,000 nuisance and
-target updates, and target plug-in reservoir refreshes every 10,000 updates.
+size 128, Gaussian base-noise standard deviation `0.1`, 100,000 nuisance
+updates, 200,000 target updates per method, and target plug-in reservoir
+refreshes every 10,000 updates.
 
 The intended workflow is:
 

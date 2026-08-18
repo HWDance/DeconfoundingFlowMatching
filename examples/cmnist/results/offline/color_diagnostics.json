@@ -1,37 +1,55 @@
 {
   "source": {
-    "arm0_vs_arm1_w1": 0.32520750164985657,
-    "arm0_vs_uniform_w1": 0.16305719316005707,
-    "arm1_vs_uniform_w1": 0.16215038299560547,
-    "arm0_vs_uniform_ks": 0.2624307870864868,
-    "arm1_vs_uniform_ks": 0.2525729537010193,
+    "arm0_vs_arm1_w1": 0.31822407245635986,
+    "arm0_vs_uniform_w1": 0.16357913613319397,
+    "arm1_vs_uniform_w1": 0.1546449214220047,
+    "arm0_vs_uniform_ks": 0.2614463269710541,
+    "arm1_vs_uniform_ks": 0.24712422490119934,
     "n_images_arm0": 5000,
     "n_images_arm1": 5000
   },
   "truth": {
-    "arm0_vs_arm1_w1": 0.007182540837675333,
-    "arm0_vs_uniform_w1": 0.00600952934473753,
-    "arm1_vs_uniform_w1": 0.002560508670285344,
-    "arm0_vs_uniform_ks": 0.018066048622131348,
-    "arm1_vs_uniform_ks": 0.007895514369010925,
+    "arm0_vs_arm1_w1": 0.006444668397307396,
+    "arm0_vs_uniform_w1": 0.0025928618852049112,
+    "arm1_vs_uniform_w1": 0.00467387679964304,
+    "arm0_vs_uniform_ks": 0.009935468435287476,
+    "arm1_vs_uniform_ks": 0.013301312923431396,
     "n_images_arm0": 5000,
     "n_images_arm1": 5000
   },
   "decfm": {
-    "arm0_vs_arm1_w1": 0.09329596906900406,
-    "arm0_vs_uniform_w1": 0.1041015237569809,
-    "arm1_vs_uniform_w1": 0.03244243934750557,
-    "arm0_vs_uniform_ks": 0.1685219407081604,
-    "arm1_vs_uniform_ks": 0.05849219113588333,
+    "arm0_vs_arm1_w1": 0.0796106681227684,
+    "arm0_vs_uniform_w1": 0.03428931161761284,
+    "arm1_vs_uniform_w1": 0.04880465567111969,
+    "arm0_vs_uniform_ks": 0.05741649866104126,
+    "arm1_vs_uniform_ks": 0.0880926176905632,
     "n_images_arm0": 5000,
     "n_images_arm1": 5000
   },
   "ot": {
-    "arm0_vs_arm1_w1": 0.057037144899368286,
-    "arm0_vs_uniform_w1": 0.008200675249099731,
-    "arm1_vs_uniform_w1": 0.0522770993411541,
-    "arm0_vs_uniform_ks": 0.02427607774734497,
-    "arm1_vs_uniform_ks": 0.07455623149871826,
+    "arm0_vs_arm1_w1": 0.08529068529605865,
+    "arm0_vs_uniform_w1": 0.038095831871032715,
+    "arm1_vs_uniform_w1": 0.04829555004835129,
+    "arm0_vs_uniform_ks": 0.052871763706207275,
+    "arm1_vs_uniform_ks": 0.08326968550682068,
+    "n_images_arm0": 5000,
+    "n_images_arm1": 5000
+  },
+  "decfm_best": {
+    "arm0_vs_arm1_w1": 0.0796106681227684,
+    "arm0_vs_uniform_w1": 0.03428931161761284,
+    "arm1_vs_uniform_w1": 0.04880465567111969,
+    "arm0_vs_uniform_ks": 0.05741649866104126,
+    "arm1_vs_uniform_ks": 0.0880926176905632,
+    "n_images_arm0": 5000,
+    "n_images_arm1": 5000
+  },
+  "ot_best": {
+    "arm0_vs_arm1_w1": 0.06844115257263184,
+    "arm0_vs_uniform_w1": 0.02995254285633564,
+    "arm1_vs_uniform_w1": 0.0426042266190052,
+    "arm0_vs_uniform_ks": 0.060524046421051025,
+    "arm1_vs_uniform_ks": 0.094129279255867,
     "n_images_arm0": 5000,
     "n_images_arm1": 5000
   }

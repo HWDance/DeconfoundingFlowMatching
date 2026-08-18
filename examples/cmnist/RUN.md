@@ -58,16 +58,16 @@ The intended full defaults are:
 - 20,000 independently generated observational rows, with a fresh arm-specific shape sampled with replacement for every row;
 - 1,000-tree propensity random forest with five-fold depth cross-validation;
 - one outcome nuisance trained for 100,000 optimizer updates;
-- independent-coupling and OT target flows, each trained for 100,000 updates;
+- independent-coupling and OT target flows, each trained for 200,000 updates;
 - batch size 128, U-Net width 32, 50 midpoint ODE steps;
 - base Gaussian pixel-noise standard deviation `0.1` for nuisance and target flows;
 - plug-in reservoir 2 and plug-in batch 1, rebuilt after every 10,000 completed target updates;
-- target checkpoints at 1k, 2.5k, 5k, 10k, 20k, 50k, 75k, and 100k;
-- final SW2 evaluation on 5,000 fresh samples per arm;
+- validation snapshots at 1k, 2.5k, 5k, 10k, 20k, 50k, 75k, 100k, 125k, 150k, 175k, and 200k;
+- validation-selected best versus final SW2 comparison on a separate shared 5,000-sample test draw per arm;
 - checkpoint SW2 on one deterministic 512-sample truth/base batch per arm, shared across methods and steps;
 - trajectory selection from a shared batch of 512 per arm, saving top/bottom eight.
 
-A successful result directory has `config.json`, `metrics.json`, `convergence.json`, `run_manifest.json`, `data_manifest.json`, `model_manifest.json`, `samples.pt`, `color_values.pt`, `color_diagnostics.json`, `trajectories.pt`, `trajectory_summary.json`, and both checkpoint directories. Checkpoint payloads must have no nuisance, propensity, optimizer, plug-in-reservoir, or cached-base tensors. Full local runs retain every scheduled checkpoint; the lean committed demo bundles retain the final Independent and OT checkpoint while keeping precomputed convergence for every scheduled step. Plotting grids and saved trajectory images use compact 8-bit storage.
+A successful result directory has `config.json`, `metrics.json`, `convergence.json`, `run_manifest.json`, `data_manifest.json`, `model_manifest.json`, `samples.pt`, `color_values.pt`, `color_diagnostics.json`, `trajectories.pt`, `trajectory_summary.json`, and both checkpoint directories. Checkpoint payloads must have no nuisance, propensity, optimizer, plug-in-reservoir, or cached-base tensors. Only each method's validation-selected best and final 200k checkpoints are retained, while `convergence.json` preserves every scheduled validation score. Plotting grids and saved trajectory images use compact 8-bit storage.
 
 The supplied online and offline Slurm scripts each request one L40S, 32 GiB
 host memory, and 12 hours. Each trains into a staging directory, audits the
