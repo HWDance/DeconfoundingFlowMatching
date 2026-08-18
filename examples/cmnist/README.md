@@ -76,4 +76,4 @@ The result directory contains:
 
 SW2 uses the same 256 projection directions and shared test bases for every best-versus-final method comparison.
 
-The notebook compares validation-selected best and final metrics, sample grids, checkpoint convergence, learned color densities, flow-change extremes, and selected trajectories. It also reloads a saved checkpoint and draws genuinely fresh endpoints and trajectories without loading any training-time sample store.
+The notebook compares validation-selected best and final metrics, a compact source/target/correction sample panel, checkpoint convergence, paper-style logit color densities, flow-change extremes, and selected trajectories. Fresh checkpoint inference and observational-population reconstruction remain covered by the result audit and saved manifests rather than adding engineering-only output to the main demo.
