@@ -760,7 +760,7 @@ def main():
         "ot": traj_summary_ot,
     }
 
-    # Compact result bundle used by demo.ipynb.
+    # Compact result bundle used by the online CMNIST demo notebook.
     saved_samples = {
         "observed_a0": source[0][:64].clone(),
         "observed_a1": source[1][:64].clone(),

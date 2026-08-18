@@ -38,6 +38,6 @@ python -m nbconvert \
   --execute \
   --inplace \
   --ExecutePreprocessor.timeout=1200 \
-  examples/cmnist/demo.ipynb
+  examples/demo_cmnist_online.ipynb
 
 echo "shared_checkpoint_convergence_complete=1"

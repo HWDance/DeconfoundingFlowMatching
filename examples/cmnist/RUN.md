@@ -23,7 +23,7 @@ python examples/cmnist/run.py --device cuda --output examples/cmnist/results/def
 python -m nbconvert \
   --to notebook --execute --inplace \
   --ExecutePreprocessor.timeout=1200 \
-  examples/cmnist/demo.ipynb
+  examples/demo_cmnist_online.ipynb
 ```
 
 For the separate offline empirical-base study:
@@ -39,7 +39,7 @@ python examples/cmnist/audit_results.py examples/cmnist/results/offline \
 python -m nbconvert \
   --to notebook --execute --inplace \
   --ExecutePreprocessor.timeout=1200 \
-  examples/cmnist/demo_offline.ipynb
+  examples/demo_cmnist_offline.ipynb
 ```
 
 The offline runner changes only the base source: the outcome nuisance and both

@@ -20,7 +20,7 @@ Current result:
 
 ## 3. Executed public demo
 
-The repository contains one demonstration: `examples/demo.ipynb`. Its target settings are:
+The repository's lightweight 2D demonstration is `examples/demo_2d.ipynb`. Its target settings are:
 
 ```text
 target MLP:           1 hidden layer, width 64
@@ -71,7 +71,7 @@ The convergence curve is embedded as the fourth figure in the notebook, alongsid
 - package source compiles successfully;
 - package source contains no imports from the old `doflow` namespace;
 - the public package has one target implementation and one conditional-outcome implementation;
-- `examples/` contains only the executed `demo.ipynb`;
+- `examples/` contains the executed 2D, online CMNIST, and offline CMNIST notebooks, with CMNIST runners and artifacts grouped under `examples/cmnist/`;
 - the notebook contains four embedded figures and no error outputs;
 - the demonstration environment is CPU-only, so a CUDA smoke test remains appropriate before declaring a release candidate.
 

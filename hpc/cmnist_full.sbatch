@@ -73,7 +73,7 @@ env CMNIST_RESULT_DIR="${FINAL_RESULT_DIR}" python -m nbconvert \
   --execute \
   --inplace \
   --ExecutePreprocessor.timeout=1200 \
-  examples/cmnist/demo.ipynb
+  examples/demo_cmnist_online.ipynb
 
 if [[ -e "${BACKUP_DIR}" ]]; then
   rm -rf -- "${BACKUP_DIR}"

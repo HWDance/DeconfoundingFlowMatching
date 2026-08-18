@@ -110,7 +110,7 @@ With `architecture="auto"` (the default), `(N,d_y)` outcomes select an MLP autom
 
 For vector outcomes, the package defaults intentionally use a small **one-hidden-layer MLP of width 64**, a target learning rate of `1e-4`, `10_000` target optimizer updates, batch size `256`, and a 64-draw cached plug-in reservoir (`plugin_batch=4`). The executed public demo notebook intentionally overrides these with a target learning rate of `3e-4` and `20_000` target updates.
 
-A single runnable walkthrough is in [`examples/demo.ipynb`](examples/demo.ipynb). The demo keeps the 1x64 MLP, batch size 256, and 64-draw plug-in reservoir, while using a target learning rate of `3e-4` and a 20,000-update budget. It compares DeconfoundingFM, OT-DeconfoundingFM, and a matched Gaussian-base FM baseline on a structured three-mode problem where the Gaussian base overlaps the central target mode. The notebook includes the source/target geometry, final generated distributions, **SW2 convergence at 250/500/1k/2k/5k/10k/15k/20k updates**, and learned trajectories.
+The runnable 2D walkthrough is [`examples/demo_2d.ipynb`](examples/demo_2d.ipynb). The demo keeps the 1x64 MLP, batch size 256, and 64-draw plug-in reservoir, while using a target learning rate of `3e-4` and a 20,000-update budget. It compares DeconfoundingFM, OT-DeconfoundingFM, and a matched Gaussian-base FM baseline on a structured three-mode problem where the Gaussian base overlaps the central target mode. The notebook includes the source/target geometry, final generated distributions, **SW2 convergence at 250/500/1k/2k/5k/10k/15k/20k updates**, and learned trajectories.
 
 
 ### Exact optimizer-step budgets
@@ -242,7 +242,13 @@ deconfoundingfm/
 │           ├── mlp.py
 │           └── unet.py
 ├── examples/
-│   └── demo.ipynb
+│   ├── demo_2d.ipynb
+│   ├── demo_cmnist_online.ipynb
+│   ├── demo_cmnist_offline.ipynb
+│   └── cmnist/
+│       ├── run.py
+│       ├── run_offline.py
+│       └── results/
 ├── tests/
 └── .github/workflows/
 ```
@@ -288,7 +294,7 @@ Apache License 2.0. See [`LICENSE`](LICENSE).
 
 ## CMNIST backend demo
 
-The repository also includes a heavier **ColorMNIST generator-correction demo** in `examples/cmnist/`. It bundles the exact original MNIST `t10k` UByte files and the same foreground-color DGP used by the research experiments (digits `(1,6)`, `tau=0.08`, `k=10`, black background, and the original red/blue map). No torchvision download or sklearn substitute is used.
+The repository also includes heavier **ColorMNIST generator-correction demos**. Their user-facing notebooks are [`examples/demo_cmnist_online.ipynb`](examples/demo_cmnist_online.ipynb) and [`examples/demo_cmnist_offline.ipynb`](examples/demo_cmnist_offline.ipynb); runners, audits, documentation, and result bundles live under `examples/cmnist/`. The study bundles the exact original MNIST `t10k` UByte files and the same foreground-color DGP used by the research experiments (digits `(1,6)`, `tau=0.08`, `k=10`, black background, and the original red/blue map). No torchvision download or sklearn substitute is used.
 
 The backend constructs a fixed labeled dataset of **20,000 independently
 generated observational rows**: every row independently samples `X`, then
@@ -303,10 +309,10 @@ The intended workflow is:
 
 ```bash
 python examples/cmnist/run.py --device cuda --output examples/cmnist/results/default
-jupyter notebook examples/cmnist/demo.ipynb
+jupyter notebook examples/demo_cmnist_online.ipynb
 ```
 
-`run.py` performs the heavy GPU training and writes a self-contained results bundle; `demo.ipynb` only loads that bundle and visualizes it. See `examples/cmnist/RUN.md` for an unattended Codex/cluster recipe. The committed default bundle is an exact-DGP preview only, with no fabricated trained-model metrics.
+`run.py` performs the heavy GPU training and writes a self-contained results bundle; `demo_cmnist_online.ipynb` only loads that bundle and visualizes it. See `examples/cmnist/RUN.md` for an unattended Codex/cluster recipe.
 
 
 For the CMNIST backend demo, the runner writes SW2, color-distribution diagnostics, and trajectory diagnostics. The reported path energies are normalized per outcome dimension: `bar_E_v = (1/d) int ||v_t(Y_t)||^2 dt` and `bar_E_vdot = (1/d) int ||d/dt v_t(Y_t)||^2 dt`.

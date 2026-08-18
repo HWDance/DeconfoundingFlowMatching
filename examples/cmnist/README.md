@@ -15,7 +15,7 @@ Run the backend and then open or execute the notebook:
 
 ```bash
 python examples/cmnist/run.py --device cuda --output examples/cmnist/results/default
-python -m nbconvert --to notebook --execute --inplace examples/cmnist/demo.ipynb
+python -m nbconvert --to notebook --execute --inplace examples/demo_cmnist_online.ipynb
 ```
 
 A separate offline empirical-base variant is available without modifying the
@@ -23,7 +23,7 @@ online result bundle:
 
 ```bash
 python examples/cmnist/run_offline.py --device cuda --output examples/cmnist/results/offline
-python -m nbconvert --to notebook --execute --inplace examples/cmnist/demo_offline.ipynb
+python -m nbconvert --to notebook --execute --inplace examples/demo_cmnist_offline.ipynb
 ```
 
 In this variant, the nuisance and both target flows use the same fixed
