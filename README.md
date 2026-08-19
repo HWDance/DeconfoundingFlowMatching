@@ -10,20 +10,6 @@ This repository is the **applied implementation** of:
 > *Debiased Counterfactual Generation via Flow Matching from Observations*.  
 > arXiv:2605.07665, 2026.
 
-<!-- The package uses **one canonical target
-implementation**:
-
-- `coupling="independent"` gives the standard doubly robust flow-matching estimator;
-- `coupling="ot"` (or the legacy alias `"eot"`) activates the minibatch entropic-OT conditional;
-- vector outcomes use an MLP velocity;
-- image outcomes use a U-Net velocity.
-
-Likewise, there is **one conditional outcome nuisance implementation** for \(P(Y\mid X,A)\): an MLP
-for vector outcomes and a covariate-conditioned U-Net for images. -->
-
-See [`docs/IMPLEMENTATION_NOTES.md`](docs/IMPLEMENTATION_NOTES.md) for the exact mapping from the
-research source and the verification performed during the refactor.
-
 ## Status and scope
 
 This repo is still in **beta mode**. The high-level API currently supports:
@@ -110,10 +96,10 @@ With `architecture="auto"` (the default), `(N,d_y)` outcomes select an MLP autom
 
 For vector outcomes, the package defaults intentionally use a small **one-hidden-layer MLP of width 64**, a target learning rate of `1e-4`, `10_000` target optimizer updates, batch size `256`, and a 64-draw cached plug-in reservoir (`plugin_batch=4`). The executed public demo notebook intentionally overrides these with a target learning rate of `3e-4` and `20_000` target updates.
 
-The runnable 2D walkthrough is [`examples/demo_2d.ipynb`](examples/demo_2d.ipynb). The demo keeps the 1x64 MLP, batch size 256, and 64-draw plug-in reservoir, while using a target learning rate of `3e-4` and a 20,000-update budget. It compares DeconfoundingFM, OT-DeconfoundingFM, and a matched Gaussian-base FM baseline on a structured three-mode problem where the Gaussian base overlaps the central target mode. The notebook includes the source/target geometry, final generated distributions, **SW2 convergence at 250/500/1k/2k/5k/10k/15k/20k updates**, and learned trajectories.
+A runnable 2D walkthrough is in [`examples/demo_2d.ipynb`](examples/demo_2d.ipynb).
 
 
-### Exact optimizer-step budgets
+### Optimizer-step budgets
 
 The default vector configuration uses an exact 10,000-update target budget. To change it, set `iterations`:
 
@@ -121,7 +107,7 @@ The default vector configuration uses an exact 10,000-update target budget. To c
 DeconfoundingFMConfig(iterations=10_000)
 ```
 
-This runs exactly 10,000 target-flow optimizer updates regardless of dataset or minibatch size. If `iterations=None`, training falls back to the epoch budget in `epochs`. The package default is 10,000 target iterations; the executed demo overrides this to 20,000 for DeconfoundingFM, OT-DeconfoundingFM, and the Gaussian-base comparison.
+This runs exactly 10,000 target-flow optimizer updates regardless of dataset or minibatch size. If `iterations=None`, training falls back to the epoch budget in `epochs`.
 
 ## Image outcomes
 
@@ -142,7 +128,7 @@ model.fit(X, A, images)
 images_a1 = model.sample(a=1, n=64)
 ```
 
-The default nuisance for images is a U-Net conditioned on both `X` and `A`; the target U-Net is conditioned only on the treatment arm.
+The default nuisance $P(Y|A,X)$ for images uses a U-Net conditioned on both `X` and `A`; the target U-Net is conditioned only on the treatment arm.
 
 ## Independent versus EOT coupling
 
@@ -152,7 +138,7 @@ The default
 DeconfoundingFMConfig(coupling="independent")
 ```
 
-uses the estimator for which the paper develops the clean doubly robust/efficiency theory.
+uses the independent coupling estimator for which the paper develops doubly robust/efficiency theory.
 
 For higher-dimensional outcomes, one can use
 
@@ -161,7 +147,7 @@ DeconfoundingFMConfig(coupling="ot")
 ```
 
 to construct minibatch entropic-OT conditionals between plug-in counterfactual draws and the
-observational base. This often gives lower-energy paths which can be easier fit.
+observational base. This often gives lower-energy paths which can be easier to fit, but may only obtain semi-parametric efficiency under stronger conditions than the independent coupling estimator, due to the additional statistical error of coupling estimation.
 
 ## Default nuisance models
 
@@ -213,6 +199,24 @@ reports:
 
 These diagnostics are not a substitute for validating overlap or nuisance-model quality, but they make
 common applied failure modes visible by default.
+
+## CMNIST Demos
+
+Two additional demos implement pretrained `DeconfoundingFM` models on the CMNIST dataset used in the paper (see [`examples/demo_cmnist_online.ipynb`](examples/demo_cmnist_online.ipynb) and [`examples/demo_cmnist_offline.ipynb`](examples/demo_cmnist_offline.ipynb)). Runners, audits, documentation, and result bundles live under `examples/cmnist/`). The study bundles the exact original MNIST `t10k` UByte files and the same foreground-color DGP used by the research experiments (digits `(1,6)`, `tau=0.08`, `k=10`, black background, and the original red/blue map). No torchvision download or sklearn substitute is used.
+
+The pretrained models are independent-coupling DeconfoundingFM and OT-DeconfoundingFM. Both are trained with batch
+size 128, Gaussian noise perturbation of base distribution samples with $\sigma = 0.1$, 100,000 nuisance
+updates, 200,000 target updates per method. Sampling from the nuisance $P(Y|A,X)$ is amorized into a "plugin-reservoir" and refreshed every 10,000 updates.
+
+The intended workflow is:
+
+```bash
+python examples/cmnist/run.py --device cuda --output examples/cmnist/results/default
+jupyter notebook examples/demo_cmnist_online.ipynb
+```
+
+`run.py` performs the heavy GPU training and writes a self-contained results bundle; `demo_cmnist_online.ipynb` only loads that bundle and visualizes it. See `examples/cmnist/RUN.md` for an unattended Codex/cluster recipe.
+
 
 ## Repository structure
 
@@ -268,7 +272,7 @@ from deconfoundingfm.integrators import integrate_midpoint
 
 ## Causal interpretation
 
-For the standard causal interpretation of $P(Y(a))$, the usual identifying conditions are required:
+For the standard causal interpretation of the target distribution $P(Y(a))$, the usual identifying conditions are required:
 consistency, conditional exchangeability given $X$, and positivity/overlap. In generative
 rebalancing applications without that causal interpretation, the same target can instead be read as
 replacing as the distribution of outcomes with attribute $A=a$ in the regime where $A \perp X$.
@@ -291,28 +295,3 @@ GitHub Actions runs the suite on supported Python versions.
 ## License
 
 Apache License 2.0. See [`LICENSE`](LICENSE).
-
-## CMNIST backend demo
-
-The repository also includes heavier **ColorMNIST generator-correction demos**. Their user-facing notebooks are [`examples/demo_cmnist_online.ipynb`](examples/demo_cmnist_online.ipynb) and [`examples/demo_cmnist_offline.ipynb`](examples/demo_cmnist_offline.ipynb); runners, audits, documentation, and result bundles live under `examples/cmnist/`. The study bundles the exact original MNIST `t10k` UByte files and the same foreground-color DGP used by the research experiments (digits `(1,6)`, `tau=0.08`, `k=10`, black background, and the original red/blue map). No torchvision download or sklearn substitute is used.
-
-The backend constructs a fixed labeled dataset of **20,000 independently
-generated observational rows**: every row independently samples `X`, then
-`A|X`, then an arm-specific digit shape with replacement. `pi_hat(A|X)` and the
-conditional outcome nuisance are estimated from those observations. The study
-reruns independent-coupling DeconfoundingFM and OT-DeconfoundingFM with batch
-size 128, Gaussian base-noise standard deviation `0.1`, 100,000 nuisance
-updates, 200,000 target updates per method, and target plug-in reservoir
-refreshes every 10,000 updates.
-
-The intended workflow is:
-
-```bash
-python examples/cmnist/run.py --device cuda --output examples/cmnist/results/default
-jupyter notebook examples/demo_cmnist_online.ipynb
-```
-
-`run.py` performs the heavy GPU training and writes a self-contained results bundle; `demo_cmnist_online.ipynb` only loads that bundle and visualizes it. See `examples/cmnist/RUN.md` for an unattended Codex/cluster recipe.
-
-
-For the CMNIST backend demo, the runner writes SW2, color-distribution diagnostics, and trajectory diagnostics. The reported path energies are normalized per outcome dimension: `bar_E_v = (1/d) int ||v_t(Y_t)||^2 dt` and `bar_E_vdot = (1/d) int ||d/dt v_t(Y_t)||^2 dt`.
