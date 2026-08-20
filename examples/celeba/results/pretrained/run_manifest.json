@@ -1,0 +1,10 @@
+{
+  "completed": true,
+  "source": "migrated_seed2_legacy_pretrained",
+  "methods": [
+    "decfm",
+    "ot"
+  ],
+  "python": "3.11.15",
+  "torch": "2.13.0+cu130"
+}

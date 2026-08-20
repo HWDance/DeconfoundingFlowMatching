@@ -1,0 +1,15 @@
+{
+  "epochs": [
+    500
+  ],
+  "decfm": [
+    0.03263981374684164
+  ],
+  "ot": [
+    0.03134759297722563
+  ],
+  "role": "legacy_selected_seed2_checkpoint",
+  "evaluation_n_per_arm": 2000,
+  "sw2_projections": 128,
+  "note": "Only the selected final legacy checkpoint was retained; this is not a curve."
+}

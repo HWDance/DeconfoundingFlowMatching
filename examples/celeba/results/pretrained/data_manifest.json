@@ -1,0 +1,70 @@
+{
+  "reconstruction": "reconstruct_celeba_data(dgp_config, root=CELEBA_ROOT, expected_indices=checkpoint['data_indices'])",
+  "observational_design": "custom_disjoint_attribute_cells",
+  "observational_seed": 2,
+  "dgp_config": {
+    "image_size": 64,
+    "n_obs": 20000,
+    "n_ref": 2000,
+    "train_split": "train",
+    "ref_split": "valid",
+    "split_mode": "custom",
+    "source_splits": [
+      "train",
+      "valid"
+    ],
+    "a_name": "Male",
+    "x_name": "Blond_Hair",
+    "clean_hair": true,
+    "hair_pair": [
+      "Blond_Hair",
+      "Brown_Hair"
+    ],
+    "drop_attrs": [
+      "Black_Hair",
+      "Gray_Hair",
+      "Bald",
+      "Wearing_Hat"
+    ],
+    "target_px1": 0.3,
+    "p_a1_x0": 0.6,
+    "p_a1_x1": 0.1,
+    "seed": 2
+  },
+  "observational_n": 20000,
+  "reference_n_per_arm": 2000,
+  "pool_n": 61037,
+  "observational_summary": {
+    "n": 20000,
+    "arm_counts": {
+      "arm0": 11000,
+      "arm1": 9000
+    },
+    "p_blond": 0.30000001192092896,
+    "p_blond_by_arm": {
+      "arm0": 0.4909090995788574,
+      "arm1": 0.06666667014360428
+    },
+    "cells": {
+      "a0_x0": 5600,
+      "a0_x1": 5400,
+      "a1_x0": 8400,
+      "a1_x1": 600
+    }
+  },
+  "index_sha256": {
+    "train_indices": "edeebd53892dd658cb0527b0010ece9a074126f016184021e17762f321682814",
+    "ref_indices_a0": "6e0ebf55c498bc496997d8488b86c569dc2d5256f949d2c026da5e4a44b895ef",
+    "ref_indices_a1": "d012581fbf81ad5dd58ce6a79761622d4b4e86d5f6a1ce9c0e42d0060c2520a5"
+  },
+  "metadata_sha256": {
+    "list_attr_celeba.txt": "f0e5da289d5ccf75ffe8811132694922b60f2af59256ed362afa03fefba324d0",
+    "list_eval_partition.txt": "fc955bcb3ef8fbdf7d5640d9a8693a8431b5f2ee291a5c1449a1549e7e073fe7"
+  },
+  "direct_observational_tensor_saved": false,
+  "display_artifact_encoding": "uint8_rgb_after_clipping_and_mapping_from_-1_1",
+  "base_source": "fixed_observational_Y_stratified_by_A_plus_gaussian_noise",
+  "base_noise_std": 0.2,
+  "empirical_base_reconstructable": true,
+  "data_root_env_var": "CELEBA_ROOT"
+}

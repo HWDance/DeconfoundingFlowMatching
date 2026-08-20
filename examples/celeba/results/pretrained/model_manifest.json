@@ -1,0 +1,31 @@
+{
+  "format_version": 1,
+  "path_kind": "relative_to_result_directory",
+  "artifact_policy": "selected_legacy_seed",
+  "selection_split": "legacy_2000_per_arm_evaluation",
+  "selection_metric": "sw2_mean",
+  "models": {
+    "decfm": {
+      "variant": "decfm",
+      "seed": 2,
+      "epoch": 500,
+      "step_unit": "epoch",
+      "selection_metric": "sw2_mean",
+      "legacy_selection_value": 0.03263981374684164,
+      "checkpoints": {
+        "500": "models/decfm/epoch_500.pt"
+      }
+    },
+    "ot": {
+      "variant": "ot",
+      "seed": 2,
+      "epoch": 500,
+      "step_unit": "epoch",
+      "selection_metric": "sw2_mean",
+      "legacy_selection_value": 0.03134759297722563,
+      "checkpoints": {
+        "500": "models/ot/epoch_500.pt"
+      }
+    }
+  }
+}
