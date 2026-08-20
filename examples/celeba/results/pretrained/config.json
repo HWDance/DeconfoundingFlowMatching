@@ -9,7 +9,9 @@
   "ode_steps": 50,
   "trajectory_n": 512,
   "trajectory_keep": 6,
-  "base_noise_std": 0.2,
+  "base_noise_std": 0.0,
+  "training_base_noise_std": 0.2,
+  "test_base_noise_std": 0.0,
   "observational_n": 20000,
   "reference_n_per_arm": 2000,
   "reported_variants": [

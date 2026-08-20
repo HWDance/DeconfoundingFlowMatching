@@ -1,0 +1,258 @@
+{
+  "format_version": 1,
+  "purpose": "Exact legacy paper identities evaluated by migrated seed-2 models.",
+  "times": [
+    0.0,
+    0.25,
+    0.5,
+    0.75,
+    1.0
+  ],
+  "selection_disclosure": "Selections are the fixed identities used in saved legacy figures. The listed compatibility seeds were found after the fact to reproduce those subsets as draws without replacement; they do not imply prospective random selection.",
+  "candidate_ranking": "Whole-image RMS displacement from t=0 to t=1, using clean empirical-base images and scanning every arm-specific seed-1 observational base image.",
+  "representative_trajectories": {
+    "arm0": {
+      "label": "Women (A=0)",
+      "legacy_source": "independent, seed 1, U-Net c=32, epoch 500",
+      "candidate_stratum": "top 8 of 11,000",
+      "draw_without_replacement": {
+        "population_size": 8,
+        "count": 1,
+        "seed": 7
+      },
+      "drawn_ranks_zero_based": [
+        7
+      ],
+      "selected": {
+        "rank_zero_based": 7,
+        "rank_one_based": 8,
+        "arm_position": 2794,
+        "observation_row": 5066,
+        "pool_index": 31192,
+        "filename": "094578.jpg",
+        "A": 0,
+        "X": 1,
+        "legacy_rms_change": 0.4153527319431305
+      },
+      "legacy_figure": "celeba_a0_top_rank7_trajectory.pdf",
+      "legacy_figure_sha256": "ef5237eae6c365a2b9451d46216f5eced6b3ce02d6bbb11e1808b37df03e261e"
+    },
+    "arm1": {
+      "label": "Men (A=1)",
+      "legacy_source": "OT, seed 1, U-Net c=64, epoch 500",
+      "candidate_stratum": "top 20 of 9,000",
+      "draw_without_replacement": {
+        "population_size": 20,
+        "count": 1,
+        "seed": 4
+      },
+      "drawn_ranks_zero_based": [
+        10
+      ],
+      "selected": {
+        "rank_zero_based": 10,
+        "rank_one_based": 11,
+        "arm_position": 2671,
+        "observation_row": 5933,
+        "pool_index": 22207,
+        "filename": "067635.jpg",
+        "A": 1,
+        "X": 0,
+        "legacy_rms_change": 0.2799309194087982
+      },
+      "legacy_figure": "celeba_a1_top_rank10_trajectory.pdf",
+      "legacy_figure_sha256": "45fc0929042c09117bae14c19f3d82bcc0f17c839fe23e7b2f983c5093859b72"
+    }
+  },
+  "women_gallery": {
+    "legacy_source": "OT, seed 1, U-Net c=64, epoch 500",
+    "candidate_strata": "top 20 and bottom 20 of 11,000",
+    "draws_without_replacement": {
+      "top20": {
+        "population_size": 20,
+        "count": 7,
+        "seed": 11009
+      },
+      "bottom20": {
+        "population_size": 20,
+        "count": 2,
+        "seed": 83
+      }
+    },
+    "drawn_ranks_zero_based": {
+      "top": [
+        5,
+        3,
+        4,
+        11,
+        13,
+        7,
+        2
+      ],
+      "bottom": [
+        18,
+        5
+      ]
+    },
+    "display_order": "Exact order in the saved paper gallery.",
+    "selected": [
+      {
+        "rank_zero_based": 2,
+        "rank_one_based": 3,
+        "arm_position": 6438,
+        "observation_row": 11672,
+        "pool_index": 44810,
+        "filename": "135659.jpg",
+        "A": 0,
+        "X": 1,
+        "legacy_rms_change": 0.4013647139072418,
+        "stratum": "top20",
+        "stratum_rank_zero_based": 2,
+        "combined_index": 2
+      },
+      {
+        "rank_zero_based": 3,
+        "rank_one_based": 4,
+        "arm_position": 5163,
+        "observation_row": 9355,
+        "pool_index": 40831,
+        "filename": "123911.jpg",
+        "A": 0,
+        "X": 1,
+        "legacy_rms_change": 0.35676416754722595,
+        "stratum": "top20",
+        "stratum_rank_zero_based": 3,
+        "combined_index": 3
+      },
+      {
+        "rank_zero_based": 11,
+        "rank_one_based": 12,
+        "arm_position": 2864,
+        "observation_row": 5185,
+        "pool_index": 6982,
+        "filename": "021208.jpg",
+        "A": 0,
+        "X": 1,
+        "legacy_rms_change": 0.27358901500701904,
+        "stratum": "top20",
+        "stratum_rank_zero_based": 11,
+        "combined_index": 11
+      },
+      {
+        "rank_zero_based": 4,
+        "rank_one_based": 5,
+        "arm_position": 4389,
+        "observation_row": 7974,
+        "pool_index": 23233,
+        "filename": "070726.jpg",
+        "A": 0,
+        "X": 1,
+        "legacy_rms_change": 0.3383147418498993,
+        "stratum": "top20",
+        "stratum_rank_zero_based": 4,
+        "combined_index": 4
+      },
+      {
+        "rank_zero_based": 5,
+        "rank_one_based": 6,
+        "arm_position": 8449,
+        "observation_row": 15329,
+        "pool_index": 60401,
+        "filename": "180942.jpg",
+        "A": 0,
+        "X": 1,
+        "legacy_rms_change": 0.33019953966140747,
+        "stratum": "top20",
+        "stratum_rank_zero_based": 5,
+        "combined_index": 5
+      },
+      {
+        "rank_zero_based": 7,
+        "rank_one_based": 8,
+        "arm_position": 2648,
+        "observation_row": 4804,
+        "pool_index": 21531,
+        "filename": "065544.jpg",
+        "A": 0,
+        "X": 1,
+        "legacy_rms_change": 0.3048831522464752,
+        "stratum": "top20",
+        "stratum_rank_zero_based": 7,
+        "combined_index": 7
+      },
+      {
+        "rank_zero_based": 18,
+        "rank_one_based": 19,
+        "arm_position": 5113,
+        "observation_row": 9274,
+        "pool_index": 7886,
+        "filename": "023973.jpg",
+        "A": 0,
+        "X": 0,
+        "legacy_rms_change": 0.03727760910987854,
+        "stratum": "bottom20",
+        "stratum_rank_zero_based": 18,
+        "combined_index": 38
+      },
+      {
+        "rank_zero_based": 5,
+        "rank_one_based": 6,
+        "arm_position": 8494,
+        "observation_row": 15424,
+        "pool_index": 31515,
+        "filename": "095522.jpg",
+        "A": 0,
+        "X": 1,
+        "legacy_rms_change": 0.03432847931981087,
+        "stratum": "bottom20",
+        "stratum_rank_zero_based": 5,
+        "combined_index": 25
+      },
+      {
+        "rank_zero_based": 13,
+        "rank_one_based": 14,
+        "arm_position": 498,
+        "observation_row": 920,
+        "pool_index": 13907,
+        "filename": "042247.jpg",
+        "A": 0,
+        "X": 1,
+        "legacy_rms_change": 0.2681847810745239,
+        "stratum": "top20",
+        "stratum_rank_zero_based": 13,
+        "combined_index": 13
+      }
+    ],
+    "legacy_figure": "celeba_a0_before_after_selected8.pdf",
+    "legacy_figure_sha256": "21f04ed22e09fd277579495515e249f3659a1588f6bd08bcae13db2b11823d1c"
+  },
+  "cache_provenance": {
+    "legacy_independent_c32": {
+      "relative_path_in_legacy_repo": "experiments/CelebA/figure_cache/dr_seed1_unet32/run01_dr_seed1_empirical_noise0.2_unet32_epochs500_trajectory_cache.pt",
+      "sha256": "e566c5c8c35b9abfcb36ae32fe8a55cb3ac52b08cf90e1410f41e9fc0c1c1d52",
+      "tag": "run01_dr_seed1_empirical_noise0.2_unet32_epochs500"
+    },
+    "legacy_ot_c64": {
+      "relative_path_in_legacy_repo": "experiments/CelebA/figure_cache/drot_seed1_unet64/run01_drot_seed1_empirical_noise0.2_unet64_epochs500_trajectory_cache.pt",
+      "sha256": "aa6ee5aaaeae451397cadd43e4934d78391d7eb64f4d6e843ea1c420194f4284",
+      "tag": "run01_drot_seed1_empirical_noise0.2_unet64_epochs500"
+    }
+  },
+  "identity_verification": {
+    "independent_a0_top_max_abs_diff": 0.0,
+    "ot_a1_top_max_abs_diff": 0.0,
+    "ot_a0_top_max_abs_diff": 0.0,
+    "ot_a0_bottom_max_abs_diff": 0.0,
+    "seed": 1,
+    "data_root_not_stored_in_artifact": true
+  },
+  "migrated_evaluation": {
+    "models": [
+      "decfm",
+      "ot"
+    ],
+    "model_seed": 2,
+    "ode_steps": 50,
+    "input": "Exact clean legacy paper start image; no new Gaussian noise added."
+  }
+}

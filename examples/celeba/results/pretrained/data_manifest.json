@@ -63,8 +63,10 @@
   },
   "direct_observational_tensor_saved": false,
   "display_artifact_encoding": "uint8_rgb_after_clipping_and_mapping_from_-1_1",
-  "base_source": "fixed_observational_Y_stratified_by_A_plus_gaussian_noise",
-  "base_noise_std": 0.2,
+  "base_source": "fixed_observational_Y_stratified_by_A",
+  "base_noise_std": 0.0,
+  "training_base_noise_std": 0.2,
+  "test_base_noise_std": 0.0,
   "empirical_base_reconstructable": true,
   "data_root_env_var": "CELEBA_ROOT"
 }

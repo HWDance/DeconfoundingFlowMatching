@@ -1,32 +1,32 @@
 {
   "source": {
-    "sw2": 0.06238393879580661,
+    "sw2": 0.04927819786825648,
     "sw2_by_arm": [
-      0.06732170817422642,
-      0.0574461694173868
+      0.05396055176532022,
+      0.04459584397119275
     ],
     "mean_rmse_by_arm": [
-      0.053403090685606,
-      0.03769479691982269
+      0.053249143064022064,
+      0.03740089759230614
     ],
     "std_rmse_by_arm": [
-      0.04301292821764946,
-      0.03920290991663933
+      0.010824402794241905,
+      0.016030892729759216
     ]
   },
   "decfm": {
-    "sw2": 0.033529642145140225,
+    "sw2": 0.045321665501673374,
     "sw2_by_arm": [
-      0.03584502933625311,
-      0.03121425495402734
+      0.0508694730606099,
+      0.03977385794273685
     ],
     "mean_rmse_by_arm": [
-      0.022344546392560005,
-      0.0169718898832798
+      0.03781174123287201,
+      0.024972006678581238
     ],
     "std_rmse_by_arm": [
-      0.011237460188567638,
-      0.011327731423079967
+      0.011749757453799248,
+      0.018109755590558052
     ],
     "legacy_saved_evaluation": {
       "tag": "run01_seed2_empirical_noise0.2_unet64_epochs500",
@@ -131,18 +131,18 @@
     }
   },
   "ot": {
-    "sw2": 0.031634818082467084,
+    "sw2": 0.03347852344696757,
     "sw2_by_arm": [
-      0.03192550202313743,
-      0.031344134141796744
+      0.03239489432361086,
+      0.03456215257032428
     ],
     "mean_rmse_by_arm": [
-      0.01938299462199211,
-      0.016592716798186302
+      0.019824696704745293,
+      0.017705105245113373
     ],
     "std_rmse_by_arm": [
-      0.00841515976935625,
-      0.011017853394150734
+      0.008738599717617035,
+      0.015224256552755833
     ],
     "legacy_saved_evaluation": {
       "tag": "run01_drot_seed2_empirical_noise0.2_unet64_epochs500",
@@ -260,9 +260,11 @@
     "projection_seed": 123,
     "sample_seed": 123,
     "ode_steps": 50,
+    "training_base_noise_std": 0.2,
+    "test_base_noise_std": 0.0,
     "shared_source_bases_across_methods": true,
     "shared_projection_directions_across_methods": true,
     "reference_indices_are_exact_legacy_seed2": true,
-    "metric_note": "SW2 on flattened normalized RGB images. Legacy-compatible projection directions are generated on CPU. Fresh new-API values use deterministic shared empirical-base draws; legacy values are retained as provenance."
+    "metric_note": "SW2 on flattened normalized RGB images. Legacy-compatible projection directions are generated on CPU. Fresh new-API values use deterministic shared clean empirical-base draws with no test-time noise; legacy values are retained as provenance."
   }
 }

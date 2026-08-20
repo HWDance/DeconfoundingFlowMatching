@@ -42,6 +42,7 @@ def build_parser():
     p.add_argument("--sample-chunk", type=int, default=32)
     p.add_argument("--ode-steps", type=int, default=50)
     p.add_argument("--eval-seed", type=int, default=123)
+    p.add_argument("--test-base-noise-std", type=float, default=0.0)
     p.add_argument("--trajectory-n", type=int, default=512)
     p.add_argument("--trajectory-keep", type=int, default=6)
     p.add_argument("--display-n", type=int, default=16)
@@ -281,7 +282,10 @@ def main():
         device="cpu",
     )
     references = {arm: population[f"Y{arm}_ref"][: args.eval_n] for arm in (0, 1)}
-    noise_std = float(payloads["decfm"]["target_config"]["base_noise_std"])
+    training_noise_std = float(payloads["decfm"]["target_config"]["base_noise_std"])
+    if float(payloads["ot"]["target_config"]["base_noise_std"]) != training_noise_std:
+        raise RuntimeError("Selected checkpoints disagree on training base noise.")
+    test_noise_std = float(args.test_base_noise_std)
     source = {}
     source_positions = {}
     for arm in (0, 1):
@@ -289,7 +293,7 @@ def main():
             population,
             arm,
             args.eval_n,
-            noise_std=noise_std,
+            noise_std=test_noise_std,
             seed=args.eval_seed + 1000 + arm,
         )
 
@@ -366,13 +370,15 @@ def main():
         "projection_seed": args.eval_seed,
         "sample_seed": args.eval_seed,
         "ode_steps": args.ode_steps,
+        "training_base_noise_std": training_noise_std,
+        "test_base_noise_std": test_noise_std,
         "shared_source_bases_across_methods": True,
         "shared_projection_directions_across_methods": True,
         "reference_indices_are_exact_legacy_seed2": True,
         "metric_note": (
             "SW2 on flattened normalized RGB images. Legacy-compatible projection "
             "directions are generated on CPU. Fresh new-API values use deterministic "
-            "shared empirical-base draws; legacy values are retained as provenance."
+            "shared clean empirical-base draws with no test-time noise; legacy values are retained as provenance."
         ),
     }
 
@@ -427,8 +433,10 @@ def main():
         "metadata_sha256": population["metadata_sha256"],
         "direct_observational_tensor_saved": False,
         "display_artifact_encoding": "uint8_rgb_after_clipping_and_mapping_from_-1_1",
-        "base_source": "fixed_observational_Y_stratified_by_A_plus_gaussian_noise",
-        "base_noise_std": noise_std,
+        "base_source": "fixed_observational_Y_stratified_by_A",
+        "base_noise_std": test_noise_std,
+        "training_base_noise_std": training_noise_std,
+        "test_base_noise_std": test_noise_std,
         "empirical_base_reconstructable": True,
         "data_root_env_var": "CELEBA_ROOT",
     }
@@ -443,7 +451,9 @@ def main():
         "ode_steps": args.ode_steps,
         "trajectory_n": args.trajectory_n,
         "trajectory_keep": args.trajectory_keep,
-        "base_noise_std": noise_std,
+        "base_noise_std": test_noise_std,
+        "training_base_noise_std": training_noise_std,
+        "test_base_noise_std": test_noise_std,
         "observational_n": dgp_config["n_obs"],
         "reference_n_per_arm": dgp_config["n_ref"],
         "reported_variants": ["decfm", "ot"],
